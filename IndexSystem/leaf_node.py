@@ -6,25 +6,26 @@ import numpy as np
 
 
 class LeafNode(BasicNode):
-    def __init__(self, page, father, left, right, child_key_list, child_rid_list, index_handler: IndexHandler):
+    def __init__(self, page, father, left, right, child_key_list, child_list, index_handler: IndexHandler):
         super(LeafNode, self).__init__(index_handler)
-        self._child_rid_list = child_rid_list
         self._node_type = 0
+
+        self._child_key_list = child_key_list
+        self._child_list = child_list
 
         self._page = page
         self._father = father
         self._left = left
         self._right = right
-        self._child_key_list = child_key_list
 
     def insert(self, key, rid: RID):
         upper = self.upper_bound(key)
         if upper is None:
             self._child_key_list.insert(0, key)
-            self._child_rid_list.insert(0, rid)
+            self._child_list.insert(0, rid)
         else:
             self._child_key_list.insert(upper, key)
-            self._child_rid_list.insert(upper, rid)
+            self._child_list.insert(upper, rid)
         return None
 
     def remove(self, key, rid: RID):
@@ -35,15 +36,15 @@ class LeafNode(BasicNode):
             upper = upper + 1
             cursor = cursor + 1
         for index in range(lower, upper):
-            if self._child_rid_list == rid:
+            if self._child_list == rid:
                 cursor = index
                 break
         if cursor != upper:
             self._child_key_list.pop(cursor)
-            self._child_rid_list.pop(cursor)
+            self._child_list.pop(cursor)
             if len_key_list > 0:
                 if cursor == 0:
-                    return self._child_rid_list[0]
+                    return self._child_list[0]
         else:
             return None
 
@@ -64,7 +65,7 @@ class LeafNode(BasicNode):
         len_key_list = len(self._child_key_list)
         array[4] = [len_key_list]
         for i in range(len_key_list):
-            rid: RID = self._child_rid_list[i]
+            rid: RID = self._child_list[i]
             array[3 * i + 5] = [self._child_key_list[i]]
             array[3 * i + 6] = [rid.page]
             array[3 * i + 7] = [rid.slot]
@@ -78,7 +79,7 @@ class LeafNode(BasicNode):
             return None
         else:
             if self._child_key_list[index] == key:
-                return self._child_rid_list[index]
+                return self._child_list[index]
             else:
                 return None
 
@@ -88,4 +89,4 @@ class LeafNode(BasicNode):
         if lower > upper:
             return None
         else:
-            return self._child_rid_list[lower:upper]
+            return self._child_list[lower:upper]

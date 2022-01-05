@@ -1,4 +1,3 @@
-
 PAGE_SIZE = 8192
 
 PAGE_INT_NUM = 2048
@@ -21,3 +20,6 @@ MAX_COL_NUM = 31
 
 MAX_TB_NUM = 31
 RELEASE = 1
+
+# file name:
+INDEX_NAME = '.id'

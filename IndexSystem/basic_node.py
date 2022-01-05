@@ -3,10 +3,13 @@ from .index_handler import IndexHandler
 
 class BasicNode:
     def __init__(self, index_handler: IndexHandler):
+        self._page = None
+        self._father = None
         self._child_key_list: list = []
+        self._child_list: list = []
         self._node_type = -1
         self._handler = index_handler
-        # -1 is abstract, 0 is leaf ,1 is non_leaf_1 ,2 is non_leaf_2
+        # -1 is abstract, 0 is leaf ,1 is non_leaf
 
     def lower_bound(self, key):
         if len(self._child_key_list):
