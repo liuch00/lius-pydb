@@ -16,23 +16,23 @@ class RecordManager:
 
     def createFile(self, name: str, recordLen: int):
         self.BM.FM.createFile(name)
-        fileID = self.BM.FM.openFile(name)
+        fileID = self.BM.openFile(name)
 
         self.BM.FM.newPage(fileID, self.toSerial(self.getHead(recordLen)))
-        self.BM.FM.closeFile(fileID)
+        self.BM.closeFile(fileID)
         return
 
     def getHead(self, recordLen: int):
         recordNum = self.getRecordNum(recordLen)
         bitmapLen = self.getBitmapLen(recordNum)
-        return {'RecordLen': recordLen, 'RecordNum': recordNum, 'PageNum': 1, 'AllRecord': 0,
-                'NextAvai': 0, 'BitmapLen': bitmapLen}
+        return {'RecordLen': recordLen, 'RecordNum': recordNum, 'PageNum': 1,
+                'AllRecord': 0, 'NextAvai': 0, 'BitmapLen': bitmapLen}
 
     def openFile(self, name: str):
         if name in self.opened:
             handler = self.opened[name]
             return handler
-        fID = self.BM.FM.openFile(name)
+        fID = self.BM.openFile(name)
         self.opened[name] = FileHandler(self, fID, name)
         return self.opened[name]
 
@@ -55,7 +55,7 @@ class RecordManager:
         handler = self.opened.get(name)
         if handler.headChanged:
             handler.changeHead()
-        self.BM.FM.closeFile(handler.fileID)
+        self.BM.closeFile(handler.fileID)
         self.opened.pop(name)
         handler.open = False
         return
