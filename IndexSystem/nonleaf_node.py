@@ -8,7 +8,7 @@ import numpy as np
 class NoneLeafNode(BasicNode):
     def __init__(self, page, father, child_key_list, child_list, index_handler: IndexHandler):
         super(NoneLeafNode, self).__init__(index_handler)
-        self._node_type = 1
+        self._node_type = 0
 
         self._child_key_list = child_key_list
         self._child_list = child_list
@@ -31,7 +31,7 @@ class NoneLeafNode(BasicNode):
                 old_key = self._child_key_list[cursor]
                 self._child_key_list[cursor] = origin_mi_key
                 cursor = cursor + 1
-                self._child_key_list.insert(cursor, origin_mi_key)
+                self._child_key_list.insert(cursor, old_key)
                 new_page_id = self._handler.new_page()
                 if node._node_type == 0:
                     new_node = NoneLeafNode(page=new_page_id, father=self._page, child_key_list=right_child_key_list,
@@ -130,3 +130,7 @@ class NoneLeafNode(BasicNode):
             if node_range is not None:
                 res = res + node_range
         return res
+
+
+
+

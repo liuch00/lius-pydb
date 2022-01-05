@@ -11,7 +11,7 @@ class BasicNode:
         self._child_list: list = []
         self._node_type = -1
         self._handler = index_handler
-        # -1 is abstract, 0 is leaf ,1 is non_leaf
+        # -1 is abstract, 1 is leaf ,0 is non_leaf
 
     def lower_bound(self, key):
         if len(self._child_key_list):
@@ -56,27 +56,44 @@ class BasicNode:
 
     @abstractmethod
     def insert(self, key, value):
-        pass
+        raise NotImplemented
 
     @abstractmethod
     def remove(self, key, value):
-        pass
+        raise NotImplemented
+
+    @abstractmethod
+    def child_list(self):
+        raise NotImplemented
+
+    @property
+    def page(self):
+        res = self._page
+        return res
+
+    @property
+    def child_key_list(self):
+        return self._child_key_list
+
+    @property
+    def child_list(self):
+        return self._child_list
 
     @abstractmethod
     def page_size(self):
-        pass
+        raise NotImplemented
 
     @abstractmethod
     def to_array(self):
-        pass
+        raise NotImplemented
 
     @abstractmethod
     def range(self, lo, hi):
-        pass
+        raise NotImplemented
 
     @abstractmethod
     def search(self, key):
-        pass
+        raise NotImplemented
 
     def split(self):
         len_key_list = len(self._child_key_list)
