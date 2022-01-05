@@ -51,7 +51,7 @@ class FileHandler:
         pID = self.RM.BM.FM.newPage(self.fileID, np.zeros(PAGE_SIZE, dtype=np.uint8))
         return pID
 
-    def getRecord(self, rid: RID, record, buf=None):
+    def getRecord(self, rid: RID, buf=None):
         slotID = rid.slot
         if buf is None:
             pID = rid.page
