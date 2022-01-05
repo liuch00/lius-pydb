@@ -49,6 +49,7 @@ class NoneLeafNode(BasicNode):
         #             return self._child_rid_list[0]
         # else:
         #     return None
+        pass
 
     def page_size(self) -> int:
         # todo:modify
@@ -72,7 +73,7 @@ class NoneLeafNode(BasicNode):
         return array
 
     def search(self, key):
-        index = self.lower_bound(key)
+        index = self.lower_bound(key=key)
         len_child_list = len(self._child_list)
         if len_child_list == index:
             index = index - 1
@@ -81,8 +82,8 @@ class NoneLeafNode(BasicNode):
 
     def range(self, lo, hi):
         res = []
-        lower = self.lower_bound(lo)
-        upper = self.upper_bound(hi)
+        lower = self.lower_bound(key=lo)
+        upper = self.upper_bound(key=hi)
         len_child_list = len(self._child_list)
         if lower is None:
             return res
@@ -91,7 +92,7 @@ class NoneLeafNode(BasicNode):
                 upper = upper + 1
         for index in range(lower, upper):
             node = self._child_list[index]
-            node_range = node.range(lower, upper)
+            node_range = node.range(lo=lower, hi=upper)
             if node_range is not None:
                 res = res + node_range
         return res

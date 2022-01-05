@@ -19,7 +19,7 @@ class LeafNode(BasicNode):
         self._right = right
 
     def insert(self, key, rid: RID):
-        upper = self.upper_bound(key)
+        upper = self.upper_bound(key=key)
         if upper is None:
             self._child_key_list.insert(0, key)
             self._child_list.insert(0, rid)
@@ -29,8 +29,8 @@ class LeafNode(BasicNode):
         return None
 
     def remove(self, key, rid: RID):
-        lower = self.lower_bound(key)
-        cursor = upper = self.upper_bound(key)
+        lower = self.lower_bound(key=key)
+        cursor = upper = self.upper_bound(key=key)
         len_key_list = len(self._child_key_list)
         if upper < len_key_list:
             upper = upper + 1
@@ -73,7 +73,7 @@ class LeafNode(BasicNode):
         return array
 
     def search(self, key):
-        index = self.lower_bound(key)
+        index = self.lower_bound(key=key)
         len_key_list = len(self._child_key_list)
         if len_key_list == 0:
             return None
@@ -84,8 +84,8 @@ class LeafNode(BasicNode):
                 return None
 
     def range(self, lo, hi):
-        lower = self.lower_bound(lo)
-        upper = self.upper_bound(hi)
+        lower = self.lower_bound(key=lo)
+        upper = self.upper_bound(key=hi)
         if lower > upper:
             return None
         else:
