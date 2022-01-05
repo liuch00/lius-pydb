@@ -74,8 +74,8 @@ class FileHandler:
         page = self.RM.BM.getPage(self.fileID, nextAvai)
         bitmap = self.getBitmap(page)
 
-        slotID = np.where(bitmap)[0]
-        if len(np.where(bitmap)) == 1:
+        slotID = np.where(bitmap)[0][0]
+        if len(np.where(bitmap)[0]) == 1:
             self.head['NextAvai'] = self.getNextAvai(page)
             self.setNextAvai(page, nextAvai)
 
