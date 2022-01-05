@@ -45,3 +45,9 @@ class FileManager:
             raise FailReadPageError
         return error
 
+    def newPage(self, fileID: int, buf: np.ndarray):
+        offset = os.lseek(fileID, 0, os.SEEK_END)
+        os.write(fileID, buf.tobytes())
+        pID = offset >> PAGE_SIZE_IDX
+        return pID
+
