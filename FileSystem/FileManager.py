@@ -1,5 +1,4 @@
 
-from FileSystem.MyBitMap import MyBitMap
 from .macro import *
 from Exceptions.exception import *
 
@@ -10,7 +9,6 @@ class FileManager:
 
     def __init__(self):
         self._fd = np.zeros(MAX_FILE_NUM)
-        self._fm = MyBitMap(MAX_FILE_NUM, 1)
 
     def createFile(self, name: str):
         f = open(name, 'w')
@@ -18,6 +16,25 @@ class FileManager:
             print("fail to create " + name)
             raise FailCreateError
         f.close()
+        return
+
+    def createExist(self, name: str):
+        f = open(name, 'a')
+        f.close()
+        return
+
+    def destroyFile(self, name: str):
+        os.remove(name)
+        return
+
+    def fileExist(self, name: str):
+        if os.path.exists(name):
+            return True
+        return False
+
+    def renameFile(self, src: str, dst: str):
+        os.rename(src, dst)
+        return
 
     def openFile(self, name: str):
         fileID = os.open(name, os.O_RDWR)
@@ -28,12 +45,14 @@ class FileManager:
 
     def closeFile(self, fileID: int):
         os.close(fileID)
+        return
 
     def writePage(self, fileID: int, pageID: int, buf: np.ndarray):
         offset = pageID
         offset = offset << PAGE_SIZE_IDX
         error = os.lseek(fileID, offset, os.SEEK_SET)
         os.write(fileID, buf.tobytes())
+        return
 
     def readPage(self, fileID: int, pageID: int):
         offset = pageID
@@ -50,4 +69,3 @@ class FileManager:
         os.write(fileID, buf.tobytes())
         pID = offset >> PAGE_SIZE_IDX
         return pID
-
