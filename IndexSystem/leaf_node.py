@@ -1,7 +1,7 @@
 from .basic_node import BasicNode
 from .index_handler import IndexHandler
 from ..RecordSystem.rid import RID
-from  ..FileSystem import macro
+from ..FileSystem import macro
 import numpy as np
 
 
@@ -25,6 +25,7 @@ class LeafNode(BasicNode):
         else:
             self._child_key_list.insert(upper, key)
             self._child_rid_list.insert(upper, rid)
+        return None
 
     def remove(self, key, rid: RID):
         lower = self.lower_bound(key)
@@ -48,17 +49,43 @@ class LeafNode(BasicNode):
 
     def page_size(self) -> int:
         # todo:modify
-        len_key_list = len(self._child_key_list)
-        return 32 + len_key_list * (8 + 16) + 32
+        len_key_list: int = len(self._child_key_list)
+        res = 64 + 24 * len_key_list
+        return res
 
     def to_array(self) -> np.ndarray:
         # todo:modify
+        num: int = int(macro.PAGE_SIZE >> 3)
+        array = np.zeros(num, np.int64)
+        array[0] = [1]
+        array[1] = [self._father]
+        array[2] = [self._left]
+        array[3] = [self._right]
         len_key_list = len(self._child_key_list)
-        arr = np.zeros(int(macro.PAGE_SIZE / 8), np.int64)
-        arr[0:5] = [1, self._father, self._left, self._right, len_key_list]
+        array[4] = [len_key_list]
         for i in range(len_key_list):
             rid: RID = self._child_rid_list[i]
-            arr[5 + 3 * i: 8 + 3 * i] = [self._child_key_list[i], rid.page, rid.slot]
-        arr.dtype = np.uint8
-        assert arr.size == macro.PAGE_SIZE
-        return arr
+            array[3 * i + 5] = [self._child_key_list[i]]
+            array[3 * i + 6] = [rid.page]
+            array[3 * i + 7] = [rid.slot]
+        array.dtype = np.uint8
+        return array
+
+    def search(self, key):
+        index = self.lower_bound(key)
+        len_key_list = len(self._child_key_list)
+        if len_key_list == 0:
+            return None
+        else:
+            if self._child_key_list[index] == key:
+                return self._child_rid_list[index]
+            else:
+                return None
+
+    def range(self, lo, hi):
+        lower = self.lower_bound(lo)
+        upper = self.upper_bound(hi)
+        if lower > upper:
+            return None
+        else:
+            return self._child_rid_list[lower:upper]

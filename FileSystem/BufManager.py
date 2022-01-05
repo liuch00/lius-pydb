@@ -63,4 +63,4 @@ class BufManager:
         fID = self.split_FPID(fpID)[0]
         self.index_in_file[fID].remove(index)
 
-    def close(self):
+    # def close(self):
