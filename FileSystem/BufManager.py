@@ -121,7 +121,7 @@ class BufManager:
         return self.addr[index].copy()
 
     def shutdown(self):
-        for i in range(CAP):
+        for i in np.where(self.dirty)[0]:
             self.writeBack(i)
         # no need to clear dirty
         self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
