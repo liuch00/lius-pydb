@@ -133,3 +133,27 @@ class BufManager:
         while self.index_in_file:
             fID = self.index_in_file.popitem()[0]
             self.closeFile(fID)
+
+    def createFile(self, name: str):
+        self.FM.createFile(name)
+        return
+
+    def fileExist(self, name: str):
+        return self.FM.fileExist(name)
+
+    def destroyFile(self, name: str):
+        return self.FM.destroyFile(name)
+
+    def renameFile(self, src: str, dst: str):
+        self.FM.renameFile(src, dst)
+        return
+
+    def writePage(self, fileID: int, pageID: int, buf: np.ndarray):
+        self.FM.writePage(fileID, pageID, buf)
+        return
+
+    def readPage(self, fileID: int, pageID: int):
+        return self.FM.readPage(fileID, pageID)
+
+    def newPage(self, fileID: int, buf: np.ndarray):
+        return self.FM.newPage(fileID, buf)

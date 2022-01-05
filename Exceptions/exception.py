@@ -8,3 +8,6 @@ class FailOpenError(Exception):
 
 class FailReadPageError(Exception):
     pass
+
+class RecordTooLong(Exception):
+    pass
