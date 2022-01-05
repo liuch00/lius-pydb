@@ -1,4 +1,6 @@
 from .index_handler import IndexHandler
+from abc import abstractmethod
+import numpy as np
 
 
 class BasicNode:
@@ -51,3 +53,38 @@ class BasicNode:
                 return lo
             else:
                 return pos
+
+    @abstractmethod
+    def insert(self, key, value):
+        pass
+
+    @abstractmethod
+    def remove(self, key, value):
+        pass
+
+    @abstractmethod
+    def page_size(self):
+        pass
+
+    @abstractmethod
+    def to_array(self):
+        pass
+
+    @abstractmethod
+    def range(self, lo, hi):
+        pass
+
+    @abstractmethod
+    def search(self, key):
+        pass
+
+    def split(self):
+        len_key_list = len(self._child_key_list)
+        mi: int = (len_key_list + 1) >> 1
+        right_child_key_list = self._child_key_list[mi:]
+        right_child_list = self._child_list[mi:]
+        left_child_key_list = self._child_key_list[:mi]
+        left_child_list = self._child_list[:mi]
+        self._child_list = left_child_list
+        self._child_key_list = left_child_key_list
+        return right_child_key_list, right_child_list, left_child_key_list[mi - 1]
