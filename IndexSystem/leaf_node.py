@@ -8,7 +8,7 @@ import numpy as np
 class LeafNode(BasicNode):
     def __init__(self, page, father, left, right, child_key_list, child_list, index_handler: IndexHandler):
         super(LeafNode, self).__init__(index_handler)
-        self._node_type = 0
+        self._node_type = 1
 
         self._child_key_list = child_key_list
         self._child_list = child_list
@@ -83,7 +83,6 @@ class LeafNode(BasicNode):
             else:
                 return None
 
-
     def range(self, lo, hi):
         lower = self.lower_bound(key=lo)
         upper = self.upper_bound(key=hi)
@@ -91,3 +90,4 @@ class LeafNode(BasicNode):
             return None
         else:
             return self._child_list[lower:upper]
+
