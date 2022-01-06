@@ -7,8 +7,8 @@ class FindReplace:
     def __init__(self, cap: int):
         self.CAP = cap
         self.list = MyLinkList(cap, 1)
-        for i in range(cap):
-            self.list.insert(0, i)
+        for i in range(cap - 1, 0, -1):
+            self.list.insertFirst(0, i)
 
     def find(self):
         index = self.list.getFirst(0)

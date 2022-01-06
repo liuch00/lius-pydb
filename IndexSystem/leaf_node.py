@@ -1,7 +1,9 @@
 from .basic_node import BasicNode
 from .index_handler import IndexHandler
-from ..RecordSystem.rid import RID
-from ..FileSystem import macro
+from RecordSystem.rid import RID
+# from ..RecordSystem.rid import RID
+from FileSystem import macro
+# from ..FileSystem import macro
 import numpy as np
 
 
@@ -58,17 +60,17 @@ class LeafNode(BasicNode):
         # todo:modify
         num: int = int(macro.PAGE_SIZE >> 3)
         array = np.zeros(num, np.int64)
-        array[0] = [1]
-        array[1] = [self._father]
-        array[2] = [self._left]
-        array[3] = [self._right]
+        array[0] = 1
+        array[1] = self._father
+        array[2] = self._left
+        array[3] = self._right
         len_key_list = len(self._child_key_list)
-        array[4] = [len_key_list]
+        array[4] = len_key_list
         for i in range(len_key_list):
             rid: RID = self._child_list[i]
-            array[3 * i + 5] = [self._child_key_list[i]]
-            array[3 * i + 6] = [rid.page]
-            array[3 * i + 7] = [rid.slot]
+            array[3 * i + 5] = self._child_key_list[i]
+            array[3 * i + 6] = rid.page
+            array[3 * i + 7] = rid.slot
         array.dtype = np.uint8
         return array
 

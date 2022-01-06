@@ -1,10 +1,11 @@
-from basic_node import BasicNode
-from leaf_node import LeafNode
-from nonleaf_node import NoneLeafNode
-from index_handler import IndexHandler
-from ..RecordSystem.rid import RID
+from .leaf_node import LeafNode
+from .nonleaf_node import NoneLeafNode
+from .index_handler import IndexHandler
+from RecordSystem.rid import RID
+# from ..RecordSystem.rid import RID
 import numpy as np
-from ..RecordSystem import macro
+from RecordSystem import macro
+# from ..RecordSystem import macro
 
 
 class FileIndex:
@@ -62,51 +63,73 @@ class FileIndex:
         temp_node_list.append(self._root_node)
         while len(temp_node_list) > 0:
             temp_node = temp_node_list.pop(0)
+            page_id = temp_node.page
+            data = temp_node.to_array()
             if isinstance(temp_node, NoneLeafNode):
-                for item in temp_node.child_list():
+                for item in temp_node.child_list:
                     temp_node_list.append(item)
-                page_id = temp_node.page()
-                data = temp_node.to_array()
-                self._handler.put_page(page_id=page_id, data=data)
+            self._handler.put_page(page_id=page_id, data=data)
         return None
 
-    def build_node(self, page_id):
+    def build_node(self, page_id) :
         self._is_modified = True
-        page_data: np.ndarray = self._handler.get_page(page_id=page_id)
-        page_data.dtype = np.int64
-        node_type = page_data[0]
-        if node_type == 0:
-            res: NoneLeafNode = self._build_node_type_0(page_id=page_id, data=page_data)
-        elif node_type == 1:
-            res: LeafNode = self._build_node_type_1(page_id=page_id, data=page_data)
-        else:
-            raise ValueError('node_type error!')
-        return res
-
-    def _build_node_type_1(self, page_id, data: np.ndarray):
+        data = self._handler.get_page(page_id)
         data.dtype = np.int64
-        child_num = data[4]
-        child_key_list = []
-        child_rid_list = []
-        for i in range(child_num):
-            child_key_list.append(data[5 + 3 * i])
-            rid = RID(int(data[6 + 3 * i]), int(data[7 + 3 * i]))
-            child_rid_list.append(rid)
-        leaf_node = LeafNode(page=page_id, father=data[1], left=data[2], right=data[3], child_key_list=child_key_list,
-                             child_list=child_rid_list, index_handler=self._handler)
-        return leaf_node
+        node = None
+        parent_id = data[1]
+        if data[0] == 1:
+            prev_id = data[2]
+            next_id = data[3]
+            child_len = data[4]
+            child_keys = [data[3 * i + 5] for i in range(child_len)]
+            child_rids = [RID(int(data[3 * i + 6]), int(data[3 * i + 7])) for i in range(child_len)]
+            assert len(child_keys) == len(child_rids)
+            node = LeafNode(page_id, parent_id, prev_id, next_id, child_keys, child_rids, self._handler)
+        elif data[0] == 0:
+            child_len = data[2]
+            child_keys = [data[2 * i + 3] for i in range(child_len)]
+            child_nodes = [self.build_node(data[2 * i + 4]) for i in range(child_len)]
+            assert len(child_keys) == len(child_nodes)
+            node = NoneLeafNode(page_id, parent_id, child_keys, child_nodes, self._handler)
+        return node
 
-    def _build_node_type_0(self, page_id, data: np.ndarray):
-        data.dtype = np.int64
-        child_num = data[2]
-        child_key_list = []
-        child_node_list = []
-        for i in range(child_num):
-            child_key_list.append(data[3 + 2 * i])
-            child_node_list.append(self.build_node(data[4 + 2 * i]))
-        nonleaf_node = NoneLeafNode(page=page_id, father=data[1], child_key_list=child_key_list,
-                                    child_list=child_node_list, index_handler=self._handler)
-        return nonleaf_node
+    # def build_node(self, page_id):
+    #     self._is_modified = True
+    #     page_data: np.ndarray = self._handler.get_page(page_id=page_id)
+    #     page_data.dtype = np.int64
+    #     node_type = page_data[0]
+    #     if node_type == 0:
+    #         res: NoneLeafNode = self._build_node_type_0(page_id=page_id, data=page_data)
+    #     elif node_type == 1:
+    #         res: LeafNode = self._build_node_type_1(page_id=page_id, data=page_data)
+    #     else:
+    #         raise ValueError('node_type error!')
+    #     return res
+    #
+    # def _build_node_type_1(self, page_id, data: np.ndarray):
+    #     data.dtype = np.int64
+    #     child_num = data[4]
+    #     child_key_list = []
+    #     child_rid_list = []
+    #     for i in range(child_num):
+    #         child_key_list.append(data[5 + 3 * i])
+    #         rid = RID(int(data[6 + 3 * i]), int(data[7 + 3 * i]))
+    #         child_rid_list.append(rid)
+    #     leaf_node = LeafNode(page=page_id, father=data[1], left=data[2], right=data[3], child_key_list=child_key_list,
+    #                          child_list=child_rid_list, index_handler=self._handler)
+    #     return leaf_node
+    #
+    # def _build_node_type_0(self, page_id, data: np.ndarray):
+    #     data.dtype = np.int64
+    #     child_num = data[2]
+    #     child_key_list = []
+    #     child_node_list = []
+    #     for i in range(child_num):
+    #         child_key_list.append(data[3 + 2 * i])
+    #         child_node_list.append(self.build_node(data[4 + 2 * i]))
+    #     nonleaf_node = NoneLeafNode(page=page_id, father=data[1], child_key_list=child_key_list,
+    #                                 child_list=child_node_list, index_handler=self._handler)
+    #     return nonleaf_node
 
     def take(self):
         page_data: np.ndarray = self._handler.get_page(page_id=self._root)
