@@ -19,6 +19,11 @@ class SQLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SQLParser#system_statement.
+    def visitSystem_statement(self, ctx:SQLParser.System_statementContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SQLParser#create_db.
     def visitCreate_db(self, ctx:SQLParser.Create_dbContext):
         return self.visitChildren(ctx)
@@ -99,6 +104,16 @@ class SQLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by SQLParser#create_index.
+    def visitCreate_index(self, ctx:SQLParser.Create_indexContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SQLParser#drop_index.
+    def visitDrop_index(self, ctx:SQLParser.Drop_indexContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by SQLParser#alter_add_index.
     def visitAlter_add_index(self, ctx:SQLParser.Alter_add_indexContext):
         return self.visitChildren(ctx)
@@ -106,6 +121,26 @@ class SQLVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by SQLParser#alter_drop_index.
     def visitAlter_drop_index(self, ctx:SQLParser.Alter_drop_indexContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SQLParser#alter_table_add.
+    def visitAlter_table_add(self, ctx:SQLParser.Alter_table_addContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SQLParser#alter_table_drop.
+    def visitAlter_table_drop(self, ctx:SQLParser.Alter_table_dropContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SQLParser#alter_table_change.
+    def visitAlter_table_change(self, ctx:SQLParser.Alter_table_changeContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by SQLParser#alter_table_rename.
+    def visitAlter_table_rename(self, ctx:SQLParser.Alter_table_renameContext):
         return self.visitChildren(ctx)
 
 
@@ -239,8 +274,8 @@ class SQLVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by SQLParser#operator_.
-    def visitOperator_(self, ctx:SQLParser.Operator_Context):
+    # Visit a parse tree produced by SQLParser#operator.
+    def visitOperator(self, ctx:SQLParser.OperatorContext):
         return self.visitChildren(ctx)
 
 
