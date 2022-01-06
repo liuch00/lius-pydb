@@ -7,7 +7,7 @@ import time
 from system_manager import SystemManger
 from lookup_element import Reducer, Term, LookupOutput, Join
 
-
+# todo:move to SQL_parser
 class SystemVisitor(SQLVisitor):
     def __init__(self, system_manager=None):
         super(SQLVisitor, self).__init__()
@@ -83,7 +83,7 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#create_table.
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
-
+        pass
     ## todo:fix
     # columns, foreign_keys, primary = ctx.field_list().accept(self)
     # table_name = self.to_str(ctx.Identifier())
