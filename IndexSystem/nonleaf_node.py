@@ -134,19 +134,6 @@ class NoneLeafNode(BasicNode):
             return res
 
 
-    # def range(self, lo, hi):
-    #     pos_low = self.lower_bound(lo)
-    #     pos_high = self.upper_bound(hi)
-    #     if pos_high is not None and pos_high < len(self._child_key_list) - 1:
-    #         pos_high += 1
-    #     records = []
-    #     if pos_low is None:
-    #         return []
-    #     for i in range(pos_low, pos_high):
-    #         if self._child_list[i].range(lo, hi) is not None:
-    #             records += self._child_list[i].range(lo, hi)
-    #     return records
-
 
 
 
