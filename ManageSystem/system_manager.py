@@ -1,5 +1,5 @@
-
 from pathlib import Path
+from .join import Join
 from antlr4 import InputStream, CommonTokenStream
 from antlr4.error.Errors import ParseCancellationException
 from antlr4.error.ErrorListener import ErrorListener
@@ -15,7 +15,7 @@ from RecordSystem.rid import RID
 from IndexSystem.index_manager import IndexManager
 from MetaSystem.MetaHandler import MetaHandler
 from Exceptions.exception import *
-from .lookup_element import LookupOutput, Term
+from .lookup_element import LookupOutput, Term, Join
 from SQL_Parser.SQLLexer import SQLLexer
 from SQL_Parser.SQLParser import SQLParser
 from MetaSystem.info import TableInfo, ColumnInfo
@@ -278,7 +278,7 @@ class SystemManger:
         if col not in tableInfo.columnIndex:
             print("OH NO")
             raise ColumnNotExist(col + " doesn't exist")
-        oldTableInfo : TableInfo = deepcopy(tableInfo)
+        oldTableInfo: TableInfo = deepcopy(tableInfo)
         colIndex = tableInfo.getColumnIndex(col)
         metaHandler.removeColumn(table, col)
         copyTableFile = self.getTablePath(table + ".copy")
@@ -329,10 +329,7 @@ class SystemManger:
         records, data = self.searchRecordIndex(table, limits)
         for record, oldVal in zip(records, data):
 
-
-
     def indexFilter(self, table: str, limits: tuple) -> set:
-
 
     def searchRecordIndex(self, table: str, limits: tuple):
         self.checkInUse()
@@ -357,6 +354,13 @@ class SystemManger:
                     data.append(valTuple)
         return records, data
 
+    def condJoin(self, res_map: dict, term):
+        if self.inUse is None:
+            raise ValueError("No using database!!!")
+        else:
+            join = Join(res_map=res_map, term=term)
+            result: LookupOutput = join.get_output()
+            return result
 
     def checkAnyUnique(self, table: str, pairs, thisRID: RID = None):
         conds = []
@@ -401,8 +405,9 @@ class SystemManger:
         if len(tableInfo.foreign) > 0:
             for col in tableInfo.foreign:
                 colVal = colVals[tableInfo.getColumnIndex(col)]
-                foreignTableInfo : TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
-                index = self.IM.start_index(self.inUse, tableInfo.foreign[col][0], foreignTableInfo.index[tableInfo.foreign[col][1]])
+                foreignTableInfo: TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
+                index = self.IM.start_index(self.inUse, tableInfo.foreign[col][0],
+                                            foreignTableInfo.index[tableInfo.foreign[col][1]])
                 if len(set(index.range(colVal, colVal))) == 0:
                     return col, colVal
         return False
