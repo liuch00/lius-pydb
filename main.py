@@ -42,15 +42,15 @@ def test1():
     load_test(handler, page_id)
 
 
-def test2():
-    file_manager = FileManager()
-    manager = BufManager(file_manager)
-    handler = IndexHandler(buf_manager=manager, database_name="A", home_directory='.')
-    page_id = 0
-    load_test(handler, page_id)
+# def test2():
+#     file_manager = FileManager()
+#     manager = BufManager(file_manager)
+#     handler = IndexHandler(buf_manager=manager, database_name="A", home_directory='.')
+#     page_id = 0
+#     load_test(handler, page_id)
 
 
 
 if __name__ == '__main__':
-    # test1()
-    test2()
+    test1()
+    # test2()
