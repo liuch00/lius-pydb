@@ -1,7 +1,8 @@
 from .basic_node import BasicNode
 from .leaf_node import LeafNode
 from .index_handler import IndexHandler
-from ..FileSystem import macro
+from FileSystem import macro
+# from ..FileSystem import macro
 import numpy as np
 
 
@@ -96,13 +97,13 @@ class NoneLeafNode(BasicNode):
         num: int = int(macro.PAGE_SIZE >> 3)
         array = np.zeros(num, np.int64)
         len_key_list = len(self._child_key_list)
-        array[0] = [1]
-        array[1] = [self._father]
-        array[2] = [len_key_list]
+        array[0] = 0
+        array[1] = self._father
+        array[2] = len_key_list
         for i in range(len_key_list):
-            array[2 * i + 3] = [self._child_key_list[i]]
+            array[2 * i + 3] = self._child_key_list[i]
             node: BasicNode = self._child_list[i]
-            array[2 * i + 4] = [node._page]
+            array[2 * i + 4] = node._page
         array.dtype = np.uint8
         return array
 
@@ -112,24 +113,26 @@ class NoneLeafNode(BasicNode):
         if len_child_list == index:
             index = index - 1
         # search in child
-        return self._child_list[index].search(key)
+        return self._child_list[index].search(key=key)
 
     def range(self, lo, hi):
         res = []
         lower = self.lower_bound(key=lo)
         upper = self.upper_bound(key=hi)
-        len_child_list = len(self._child_list)
         if lower is None:
             return res
-        if upper is not None:
-            if upper + 1 < len_child_list:
-                upper = upper + 1
-        for index in range(lower, upper):
-            node = self._child_list[index]
-            node_range = node.range(lo=lower, hi=upper)
-            if node_range is not None:
-                res = res + node_range
-        return res
+        else:
+            len_child_key_list = len(self._child_key_list)
+            if upper is not None:
+                if upper + 1 < len_child_key_list:
+                    upper = upper + 1
+            for index in range(lower, upper):
+                node = self._child_list[index]
+                node_range = node.range(lo=lo, hi=hi)
+                if node_range is not None:
+                    res = res + node_range
+            return res
+
 
 
 

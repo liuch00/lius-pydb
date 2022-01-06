@@ -1,10 +1,11 @@
-from basic_node import BasicNode
-from leaf_node import LeafNode
-from nonleaf_node import NoneLeafNode
-from index_handler import IndexHandler
-from ..RecordSystem.rid import RID
+from .leaf_node import LeafNode
+from .nonleaf_node import NoneLeafNode
+from .index_handler import IndexHandler
+from RecordSystem.rid import RID
+# from ..RecordSystem.rid import RID
 import numpy as np
-from ..RecordSystem import macro
+from RecordSystem import macro
+# from ..RecordSystem import macro
 
 
 class FileIndex:
@@ -56,27 +57,18 @@ class FileIndex:
     def range(self, lo, hi):
         return self._root_node.range(lo=lo, hi=hi)
 
-    def build(self, child_key_list: list, child_rid_list: list):
-        self._is_modified = True
-        len_child_key_list = len(child_key_list)
-        len_child_rid_list = len(child_rid_list)
-        assert (len_child_key_list == len_child_rid_list), 'child_key_list and child_rid_list length not same'
-        for index in range(len_child_key_list):
-            self.insert(key=child_key_list[index], value=child_rid_list[index])
-        return None
-
     def pour(self):
         temp_node_list = []
         temp_node = None
         temp_node_list.append(self._root_node)
         while len(temp_node_list) > 0:
             temp_node = temp_node_list.pop(0)
+            page_id = temp_node.page
+            data = temp_node.to_array()
             if isinstance(temp_node, NoneLeafNode):
-                for item in temp_node.child_list():
+                for item in temp_node.child_list:
                     temp_node_list.append(item)
-                page_id = temp_node.page()
-                data = temp_node.to_array()
-                self._handler.put_page(page_id=page_id, data=data)
+            self._handler.put_page(page_id=page_id, data=data)
         return None
 
     def build_node(self, page_id):
@@ -123,3 +115,7 @@ class FileIndex:
         assert (page_data[1] == self._root), 'page take error!'
         self._root_node = self.build_node(page_id=self._root)
         return None
+
+    @property
+    def handler(self):
+        return self._handler

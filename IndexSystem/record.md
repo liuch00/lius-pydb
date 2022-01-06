@@ -1,4 +1,0 @@
-baisc_node 是基类
-leaf_node 叶结点
-nonleaf_1_node 孩子是叶结点的结点
-nonleaf_2_node 孩子是非叶结点的结点
