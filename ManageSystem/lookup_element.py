@@ -37,7 +37,8 @@ class Reducer:
         pass
 
 
-
-class Lookup_Output:
+class LookupOutput:
     def __init__(self):
         pass
+
+    
