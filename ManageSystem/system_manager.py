@@ -15,10 +15,11 @@ from RecordSystem.rid import RID
 from IndexSystem.index_manager import IndexManager
 from MetaSystem.MetaHandler import MetaHandler
 from Exceptions.exception import *
-from .lookup_element import LookupOutput
+from .lookup_element import LookupOutput, Term
 from SQL_Parser.SQLLexer import SQLLexer
 from SQL_Parser.SQLParser import SQLParser
 from MetaSystem.info import TableInfo, ColumnInfo
+from .macro import *
 
 
 class SystemManger:
@@ -305,6 +306,150 @@ class SystemManger:
 
         self.checkInsertConstraint(table, valTuple)
         rid = self.RM.openFile(self.getTablePath(table)).insertRecord(info)
-        self.handleInsertIndex(tableInfo, self.inUse, valTuple, rid)
+        self.handleInsertIndex(table, valTuple, rid)
         return
 
+    def deleteRecords(self, table: str, limits: tuple):
+        self.checkInUse()
+        fileHandler = self.RM.openFile(self.getTablePath(table))
+        metaHandler = self.fetchMetaHandler()
+        records, data = self.searchRecordIndex(table, limits)
+        for record, valTuple in zip(records, data):
+            self.checkRemoveConstraint(table, valTuple)
+            fileHandler.deleteRecord(record.rid)
+            self.handleRemoveIndex(table, valTuple, record.rid)
+        return LookupOutput('deleted_items', (len(records),))
+
+    def updateRecords(self, table: str, limits: tuple, valmap: dict):
+        self.checkInUse()
+        fileHandler = self.RM.openFile(self.getTablePath(table))
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        tableInfo.checkValue(valmap)
+        records, data = self.searchRecordIndex(table, limits)
+        for record, oldVal in zip(records, data):
+
+
+
+    def indexFilter(self, table: str, limits: tuple) -> set:
+
+
+    def searchRecordIndex(self, table: str, limits: tuple):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        functions = self.buildConditionsFuncs(table, limits, metaHandler)
+        fileHandler: FileHandler = self.RM.openFile(self.getTablePath(table))
+        records = []
+        data = []
+        if self.indexFilter(table, limits):
+            iterator = map(fileHandler.getRecord, self.indexFilter(table, limits))
+            for record in iterator:
+                valTuple = tableInfo.loadRecord(record)
+                if all(map(lambda fun: fun(valTuple), functions)):
+                    records.append(record)
+                    data.append(valTuple)
+        else:
+            for record in FileScan(fileHandler):
+                valTuple = tableInfo.loadRecord(record)
+                if all(map(lambda fun: fun(valTuple), functions)):
+                    records.append(record)
+                    data.append(valTuple)
+        return records, data
+
+
+    def checkAnyUnique(self, table: str, pairs, thisRID: RID = None):
+        conds = []
+        for col in pairs:
+            conds.append(Term(1, table, col, '=', value=pairs.get(col)))
+        records, data = self.searchRecordIndex(table, tuple(conds))
+        if len(records) <= 1:
+            if records and records[0].rid == thisRID:
+                return False
+            elif records:
+                return (tuple(pairs.keys()), tuple(pairs.values()))
+            return False
+        print("OH NO")
+        raise CheckAnyUniqueError("get " + str(len(records)) + " same")
+
+    def checkPrimary(self, table: str, colVals, thisRID: RID = None):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        if tableInfo.primary:
+            pairs = {}
+            for col in tableInfo.primary:
+                pairs[col] = colVals[tableInfo.getColumnIndex(col)]
+            return self.checkAnyUnique(table, pairs, thisRID)
+        return False
+
+    def checkUnique(self, table: str, colVals, thisRID: RID = None):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        if tableInfo.unique:
+            for col in tableInfo.unique:
+                pairs = {col: colVals[tableInfo.getColumnIndex(col)]}
+                if self.checkAnyUnique(table, pairs, thisRID):
+                    return self.checkAnyUnique(table, pairs, thisRID)
+        return False
+
+    def checkForeign(self, table: str, colVals):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        if len(tableInfo.foreign) > 0:
+            for col in tableInfo.foreign:
+                colVal = colVals[tableInfo.getColumnIndex(col)]
+                foreignTableInfo : TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
+                index = self.IM.start_index(self.inUse, tableInfo.foreign[col][0], foreignTableInfo.index[tableInfo.foreign[col][1]])
+                if len(set(index.range(colVal, colVal))) == 0:
+                    return col, colVal
+        return False
+
+    def checkInsertConstraint(self, table: str, colVals, thisRID: RID = None):
+        if self.checkPrimary(table, colVals, thisRID):
+            dup = self.checkPrimary(table, colVals, thisRID)
+            print("OH NO")
+            raise DuplicatedPrimaryKeyError("duplicated: " + str(dup[0]) + ": " + str(dup[1]))
+
+        if self.checkUnique(table, colVals, thisRID):
+            dup = self.checkUnique(table, colVals, thisRID)
+            print("OH NO")
+            raise DuplicatedUniqueKeyError("duplicated: " + str(dup[0]) + ": " + str(dup[1]))
+
+        if self.checkForeign(table, colVals):
+            miss = self.checkForeign(table, colVals)
+            print("OH NO")
+            raise MissForeignKeyError("miss: " + str(miss[0]) + ": " + str(miss[1]))
+        return
+
+    def checkRemoveConstraint(self, table: str, colVals):
+
+        return
+
+    def handleInsertIndex(self, table: str, data: tuple, rid: RID):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        for col in tableInfo.index:
+            if data[tableInfo.getColumnIndex(col)]:
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                index.insert(data[tableInfo.getColumnIndex(col)], rid)
+            else:
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                index.insert(NULL_VALUE, rid)
+        return
+
+    def handleRemoveIndex(self, table: str, data: tuple, rid: RID):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        for col in tableInfo.index:
+            if data[tableInfo.getColumnIndex(col)]:
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                index.delete(data[tableInfo.getColumnIndex(col)], rid)
+            else:
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                index.delete(NULL_VALUE, rid)
+        return

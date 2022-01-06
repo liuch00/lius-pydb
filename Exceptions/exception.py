@@ -49,3 +49,15 @@ class DatabaseNotExist(MyException):
 
 class NoDatabaseInUse(MyException):
     pass
+
+class CheckAnyUniqueError(MyException):
+    pass
+
+class DuplicatedPrimaryKeyError(MyException):
+    pass
+
+class DuplicatedUniqueKeyError(MyException):
+    pass
+
+class MissForeignKeyError(MyException):
+    pass
