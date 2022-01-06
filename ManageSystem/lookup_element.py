@@ -5,7 +5,7 @@ class Term:
                     3 is like
     """
 
-    def __init__(self, term_type, table_name, col, operator, aim_table_name, aim_col, value):
+    def __init__(self, term_type, table_name, col, operator=None, aim_table_name=None, aim_col=None, value=None):
         self._type: int = term_type
         self._table: str = table_name
         self._col: str = col
@@ -22,7 +22,7 @@ class Reducer:
                     3 is counter
     """
 
-    def __init__(self, reducer_type, table_name, col, aggregator):
+    def __init__(self, reducer_type, table_name=None, col=None, aggregator=None):
         self._reducer_type: int = reducer_type
         self._table_name: str = table_name
         self._col: str = col
