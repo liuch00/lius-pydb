@@ -118,6 +118,5 @@ class SystemManger:
                 self.metaHandlers[self.inUse] = MetaHandler(self.inUse, str(self.systemPath))
             metaHandler: MetaHandler = self.metaHandlers.get(self.inUse)
             metaHandler.insertTable(table)
-
         print("OH NO")
         raise NoDatabaseInUse("use a database first")
