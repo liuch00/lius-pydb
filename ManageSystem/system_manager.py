@@ -3,11 +3,15 @@ from pathlib import Path
 from antlr4 import InputStream, CommonTokenStream
 from antlr4.error.Errors import ParseCancellationException
 from antlr4.error.ErrorListener import ErrorListener
+from copy import deepcopy
 from .system_visitor import SystemVisitor
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
 from RecordSystem.RecordManager import RecordManager
 from RecordSystem.FileScan import FileScan
+from RecordSystem.FileHandler import FileHandler
+from RecordSystem.record import Record
+from RecordSystem.rid import RID
 from IndexSystem.index_manager import IndexManager
 from MetaSystem.MetaHandler import MetaHandler
 from Exceptions.exception import *
@@ -240,5 +244,67 @@ class SystemManger:
                 indexName = table + "." + column
                 if indexName in metaHandler.databaseInfo.indexMap:
                     self.removeIndex(indexName)
+        return
+
+    def addColumn(self, table: str, col: ColumnInfo):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        if tableInfo.getColumnIndex(col.name):
+            print("OH NO")
+            raise ColumnAlreadyExist(col.name + " exists")
+        oldTableInfo: TableInfo = deepcopy(tableInfo)
+        metaHandler.databaseInfo.insertColumn(table, col)
+        metaHandler.shutdown()
+        copyTableFile = self.getTablePath(table + ".copy")
+        self.RM.createFile(copyTableFile, tableInfo.rowSize)
+        newRecordHandle: FileHandler = self.RM.openFile(copyTableFile)
+        scan = FileScan(self.RM.openFile(self.getTablePath(table)))
+        for record in scan:
+            recordVals = oldTableInfo.loadRecord(record)
+            valList = list(recordVals)
+            valList.append(col.default)
+            newRecordHandle.insertRecord(tableInfo.buildRecord(valList))
+        self.RM.closeFile(self.getTablePath(table))
+        self.RM.closeFile(copyTableFile)
+        self.RM.replaceFile(copyTableFile, self.getTablePath(table))
+        return
+
+    def removeColumn(self, table: str, col: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        if col not in tableInfo.columnIndex:
+            print("OH NO")
+            raise ColumnNotExist(col + " doesn't exist")
+        oldTableInfo : TableInfo = deepcopy(tableInfo)
+        colIndex = tableInfo.getColumnIndex(col)
+        metaHandler.removeColumn(table, col)
+        copyTableFile = self.getTablePath(table + ".copy")
+        self.RM.createFile(copyTableFile, tableInfo.rowSize)
+        newRecordHandle: FileHandler = self.RM.openFile(copyTableFile)
+        scan = FileScan(self.RM.openFile(self.getTablePath(table)))
+        for record in scan:
+            recordVals = oldTableInfo.loadRecord(record)
+            valList = list(recordVals)
+            valList.pop(colIndex)
+            newRecordHandle.insertRecord(tableInfo.buildRecord(valList))
+        self.RM.closeFile(self.getTablePath(table))
+        self.RM.closeFile(copyTableFile)
+        self.RM.replaceFile(copyTableFile, self.getTablePath(table))
+        return
+
+    def insertRecord(self, table: str, val: list):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+
+        info = tableInfo.buildRecord(val)
+        tempRecord = Record(RID(0, 0), info)
+        valTuple = tableInfo.loadRecord(tempRecord)
+
+        self.checkInsertConstraint(table, valTuple)
+        rid = self.RM.openFile(self.getTablePath(table)).insertRecord(info)
+        self.handleInsertIndex(tableInfo, self.inUse, valTuple, rid)
         return
 
