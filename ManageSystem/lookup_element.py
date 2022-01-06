@@ -14,6 +14,26 @@ class Term:
         self._aim_col: str = aim_col
         self._value = value
 
+    @property
+    def aim_table(self):
+        return self._aim_table
+
+    @property
+    def table(self):
+        return self._table
+
+    @property
+    def operator(self):
+        return self._operator
+
+    @property
+    def col(self):
+        return self._col
+
+    @property
+    def aim_col(self):
+        return self._aim_col
+
 
 class Reducer:
     """reducer_type:0 is all
