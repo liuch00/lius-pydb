@@ -80,10 +80,6 @@ class TableInfo:
             raise ColumnNotExist("this name doesn't exist")
         return
 
-    def setPrimary(self, pri: str):
-        self.primary = pri
-        return
-
     def addForeign(self, column: str, foreign):
         self.foreign[column] = foreign
         return
@@ -93,7 +89,7 @@ class TableInfo:
             self.foreign.pop(column)
         return
 
-    def addUnique(self, column: str, uniq):
+    def addUnique(self, column: str, uniq: str):
         self.unique[column] = uniq
         return
 
@@ -220,11 +216,6 @@ class TableInfo:
                 raise ValueTypeError("unknown field: " + name)
         return
 
-    def indexExist(self, name: str):
-        if name in self.index:
-            return True
-        return False
-
 class DatabaseInfo:
     def __init__(self, name, tables):
         self.name = name
@@ -239,24 +230,28 @@ class DatabaseInfo:
         else:
             print("OH NO")
             raise TableAlreadyExist("this name exists")
+        return
 
     def insertColumn(self, table: str, col: ColumnInfo):
         if self.tableMap.get(table) is None:
             print("OH NO")
             raise TableNotExist("this name doesn't exist")
         self.tableMap[table].insertColumn(col)
+        return
 
     def removeTable(self, table: str):
         if self.tableMap.get(table) is None:
             print("OH NO")
             raise TableNotExist("this name doesn't exist")
         self.tableMap.pop(table)
+        return
 
     def removeColumn(self, table: str, col: str):
         if self.tableMap.get(table) is None:
             print("OH NO")
             raise TableNotExist("this name doesn't exist")
         self.tableMap[table].removeColumn(col)
+        return
 
     def createIndex(self, index: str, table: str, col: str):
         if self.indexMap.get(index) is None:
@@ -264,12 +259,14 @@ class DatabaseInfo:
         else:
             print("OH NO")
             raise IndexAlreadyExist("this name exists")
+        return
 
-    def dropIndex(self, index: str):
+    def removeIndex(self, index: str):
         if self.indexMap.get(index) is None:
             print("OH NO")
             raise IndexNotExist("this name doesn't exist")
         self.indexMap.pop(index)
+        return
 
     def getIndex(self, index: str):
         if self.indexMap.get(index) is None:
