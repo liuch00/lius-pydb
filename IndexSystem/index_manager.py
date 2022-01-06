@@ -1,13 +1,13 @@
 from index_handler import IndexHandler
 from file_index import FileIndex
 from typing import Dict
-from ..FileSystem import FileManager
+from ..FileSystem import BufManager
 from FileIndexID import FileIndexID
 
 
 class IndexManager:
-    def __init__(self, file_manager: FileManager, home_directory: str = '/'):
-        self._file_manager = file_manager
+    def __init__(self, buf_manager: BufManager, home_directory: str = '/'):
+        self._buf_manager = buf_manager
         self._home_directory = home_directory
         self._started_index_handler: Dict[str, IndexHandler] = {}
         self._started_file_index: Dict[FileIndexID, FileIndex] = {}
@@ -17,7 +17,7 @@ class IndexManager:
             return self._started_index_handler[database_name]
         else:
             # not exist
-            new_handler: IndexHandler = IndexHandler(file_manager=self._file_manager, database_name=database_name,
+            new_handler: IndexHandler = IndexHandler(buf_manager=self._buf_manager, database_name=database_name,
                                                      home_directory=self._home_directory)
             self._started_index_handler[database_name]: IndexHandler = new_handler
             return self._started_index_handler[database_name]
