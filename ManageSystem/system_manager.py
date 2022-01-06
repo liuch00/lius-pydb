@@ -7,6 +7,7 @@ from .system_visitor import SystemVisitor
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
 from RecordSystem.RecordManager import RecordManager
+from RecordSystem.FileScan import FileScan
 from IndexSystem.index_manager import IndexManager
 from MetaSystem.MetaHandler import MetaHandler
 from Exceptions.exception import *
@@ -34,6 +35,12 @@ class SystemManger:
         self.IM.close_manager()
         self.RM.shutdown()
         self.BM.shutdown()
+
+    def checkInUse(self):
+        if self.inUse is None:
+            print("OH NO")
+            raise NoDatabaseInUse("use a database first")
+        return
 
     def createDatabase(self, dbname: str):
         if dbname not in self.databaselist:
@@ -70,11 +77,11 @@ class SystemManger:
             self.inUse = dbname
             result = LookupOutput(change_db=dbname)
             return result
+        print("OH NO")
+        raise DatabaseNotExist("this name doesn't exist")
 
     def getTablePath(self, table: str):
-        if self.inUse is None:
-            print("OH NO")
-            raise NoDatabaseInUse("use a database first")
+        self.checkInUse()
         tablePath = self.systemPath / self.inUse / table
         return str(tablePath) + ".table"
 
@@ -83,7 +90,7 @@ class SystemManger:
             def syntaxError(self, recognizer, offending_symbol, line, column, msg, e):
                 raise ParseCancellationException("line " + str(line) + ":" + str(column) + " " + msg)
 
-        self.visitor.time_cost()
+        self.visitor.spend_time()
         input_stream = InputStream(sql)
         lexer = SQLLexer(input_stream)
         lexer.removeErrorListeners()
@@ -95,28 +102,143 @@ class SystemManger:
         try:
             tree = parser.program()
         except ParseCancellationException as e:
-            return [LookupOutput(None, None, str(e), cost=self.visitor.time_cost())]
+            return [LookupOutput(None, None, str(e), cost=self.visitor.spend_time())]
         try:
             return self.visitor.visit(tree)
         except MyException as e:
-            return [LookupOutput(message=str(e), cost=self.visitor.time_cost())]
+            return [LookupOutput(message=str(e), cost=self.visitor.spend_time())]
 
     def displayTableNames(self):
         result = []
-        if self.inUse is not None:
-            usingDB = self.systemPath / self.inUse
-            for file in usingDB.iterdir():
-                if file.name.endswith(".table")
-                    result.append(file.stem)
-            return result
-        print("OH NO")
-        raise NoDatabaseInUse("use a database first")
+        self.checkInUse()
+        usingDB = self.systemPath / self.inUse
+        for file in usingDB.iterdir():
+            if file.name.endswith(".table"):
+                result.append(file.stem)
+        return result
+
+    def fetchMetaHandler(self):
+        if self.metaHandlers.get(self.inUse) is None:
+            self.metaHandlers[self.inUse] = MetaHandler(self.inUse, str(self.systemPath))
+        return self.metaHandlers[self.inUse]
 
     def createTable(self, table: TableInfo):
-        if self.inUse is not None:
-            if self.metaHandlers.get(self.inUse) is None:
-                self.metaHandlers[self.inUse] = MetaHandler(self.inUse, str(self.systemPath))
-            metaHandler: MetaHandler = self.metaHandlers.get(self.inUse)
-            metaHandler.insertTable(table)
-        print("OH NO")
-        raise NoDatabaseInUse("use a database first")
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.insertTable(table)
+        tablePath = self.getTablePath(table.name)
+        self.RM.createFile(tablePath, table.rowSize)
+        return
+
+    def removeTable(self, table: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.removeTable(table)
+        tablePath = self.getTablePath(table)
+        self.RM.destroyFile(tablePath)
+        return
+
+    def collectTableinfo(self, table: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        return metaHandler, metaHandler.collectTableInfo(table)
+
+    def descTable(self, table: str):
+        head = ('Field', 'Type', 'Null', 'Key', 'Default', 'Extra')
+        data = self.collectTableinfo(table)[1].describe()
+        return LookupOutput(head, data)
+
+    def renameTable(self, src: str, dst: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.renameTable(src, dst)
+        srcFilename = self.getTablePath(src)
+        dstFilename = self.getTablePath(dst)
+        self.RM.renameFile(srcFilename, dstFilename)
+        return
+
+    def createIndex(self, index: str, table: str, col: str):
+        metaHandler, tableInfo = self.collectTableinfo(table)
+        if index in metaHandler.databaseInfo.indexMap:
+            print("OH NO")
+            raise IndexAlreadyExist("this name exists")
+        if col in tableInfo.index:
+            metaHandler.createIndex(index, table, col)
+            return
+        indexFile = self.IM.create_index(self.inUse, table)
+        tableInfo.index[col] = indexFile._root
+
+        if tableInfo.getColumnIndex(col) is not None:
+            colIndex = tableInfo.getColumnIndex(col)
+            for record in FileScan(self.RM.openFile(self.getTablePath(table))):
+                recordData = tableInfo.loadRecord(record)
+                indexFile.insert(recordData[colIndex], record.rid)
+            metaHandler.createIndex(index, table, col)
+        else:
+            print("OH NO")
+            raise ColumnNotExist(col + "doesn't exist")
+
+    def removeIndex(self, index: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        table, col = metaHandler.databaseInfo.getIndex(index)
+        metaHandler.collectTableInfo(table).indexes.pop(col)
+        metaHandler.removeIndex(index)
+        self.metaHandlers.pop(self.inUse).shutdown()
+        return
+
+    def addUnique(self, table: str, col: str, uniq: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        metaHandler.addUnique(table, col, uniq)
+        if uniq not in metaHandler.databaseInfo.indexMap:
+            self.createIndex(uniq, table, col)
+        return
+
+    def addForeign(self, table: str, col: str, foreign, forName=None):
+        metaHandler, tableInfo = self.collectTableinfo(table)
+        tableInfo.addForeign(col, foreign)
+        metaHandler.shutdown()
+        if forName:
+            if forName not in metaHandler.databaseInfo.indexMap:
+                self.createIndex(forName, foreign[0], foreign[1])
+        else:
+            indexName = foreign[0] + "." + foreign[1]
+            if indexName not in metaHandler.databaseInfo.indexMap:
+                self.createIndex(indexName, foreign[0], foreign[1])
+        return
+
+    def removeForeign(self, table: str, col: str, forName=None):
+        metaHandler, tableInfo = self.collectTableinfo(table)
+        if forName:
+            if metaHandler.databaseInfo.indexMap.get(forName):
+                self.removeIndex(forName)
+        else:
+            if tableInfo.foreign.get(col) is not None:
+                foreign = tableInfo.foreign[col][0] + "." + tableInfo.foreign[col][1]
+                if metaHandler.databaseInfo.indexMap.get(foreign):
+                    self.removeIndex(foreign)
+            tableInfo.removeForeign(col)
+            metaHandler.shutdown()
+
+    def setPrimary(self, table: str, pri):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.setPrimary(table, pri)
+        if pri:
+            for column in pri:
+                indexName = table + "." + column
+                if indexName not in metaHandler.databaseInfo.indexMap:
+                    self.createIndex(indexName, table, column)
+        return
+
+    def removePrimary(self, table: str):
+        metaHandler, tableInfo = self.collectTableinfo(table)
+        if tableInfo.primary:
+            for column in tableInfo.primary:
+                indexName = table + "." + column
+                if indexName in metaHandler.databaseInfo.indexMap:
+                    self.removeIndex(indexName)
+        return
+

@@ -40,7 +40,7 @@ class MetaHandler:
         self.toPickle(self.metaPath)
         return
 
-    def getTableInfo(self, table: str):
+    def collectTableInfo(self, table: str):
         if self.databaseInfo.tableMap.get(table) is None:
             print("OH NO")
             raise TableNotExist("this name doesn't exist")
@@ -71,20 +71,20 @@ class MetaHandler:
         self.toPickle(self.metaPath)
         return
 
-    def setPrimary(self, table: str, pri: str):
-        self.getTableInfo(table).primary = pri
+    def setPrimary(self, table: str, pri):
+        self.collectTableInfo(table).primary = pri
         self.metaPath = os.path.join(self.systemPath, self.databaseName, self.databaseName + ".me")
         self.toPickle(self.metaPath)
         return
 
     def removePrimary(self, table: str):
-        self.getTableInfo(table).primary = None
+        self.collectTableInfo(table).primary = None
         self.metaPath = os.path.join(self.systemPath, self.databaseName, self.databaseName + ".me")
         self.toPickle(self.metaPath)
         return
 
     def addUnique(self, table: str, column: str, uniq: str):
-        self.getTableInfo(table).addUnique(column, uniq)
+        self.collectTableInfo(table).addUnique(column, uniq)
         self.metaPath = os.path.join(self.systemPath, self.databaseName, self.databaseName + ".me")
         self.toPickle(self.metaPath)
         return
@@ -122,7 +122,7 @@ class MetaHandler:
     def getColumn2Table(self, tables: list):
         result = {}
         for table in tables:
-            tableInfo = self.getTableInfo(table)
+            tableInfo = self.collectTableInfo(table)
             for col in tableInfo.columnMap.keys():
                 colInfo = tableInfo.columnMap.get(col)
                 if result.get(col) is None:
