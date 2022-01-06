@@ -1,40 +1,51 @@
 
-
-class FailCreateError(Exception):
+class MyException(Exception):
     pass
 
-class FailOpenError(Exception):
+class FailCreateError(MyException):
     pass
 
-class FailReadPageError(Exception):
+class FailOpenError(MyException):
     pass
 
-class RecordTooLong(Exception):
+class FailReadPageError(MyException):
     pass
 
-class ColumnAlreadyExist(Exception):
+class RecordTooLong(MyException):
     pass
 
-class ColumnNotExist(Exception):
+class ColumnAlreadyExist(MyException):
     pass
 
-class ValueNumError(Exception):
+class ColumnNotExist(MyException):
     pass
 
-class VarcharTooLong(Exception):
+class ValueNumError(MyException):
     pass
 
-class ValueTypeError(Exception):
+class VarcharTooLong(MyException):
     pass
 
-class TableAlreadyExist(Exception):
+class ValueTypeError(MyException):
     pass
 
-class TableNotExist(Exception):
+class TableAlreadyExist(MyException):
     pass
 
-class IndexAlreadyExist(Exception):
+class TableNotExist(MyException):
     pass
 
-class IndexNotExist(Exception):
+class IndexAlreadyExist(MyException):
+    pass
+
+class IndexNotExist(MyException):
+    pass
+
+class DatabaseAlreadyExist(MyException):
+    pass
+
+class DatabaseNotExist(MyException):
+    pass
+
+class NoDatabaseInUse(MyException):
     pass
