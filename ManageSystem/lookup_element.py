@@ -76,6 +76,3 @@ class LookupOutput:
         pass
 
 
-class Join:
-    def __init__(self):
-        pass
