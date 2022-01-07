@@ -639,7 +639,7 @@ class SystemManger:
                     heads.append(reducer.target())
                 headers = tuple(heads)
                 for head in headers:
-                    headindexes.append(result.get_header_index(head))
+                    headindexes.append(result.header_id(head))
                 indexes = tuple(headindexes)
                 def takeCol(row):
                     return tuple(row[ele] for ele in indexes)
@@ -647,16 +647,18 @@ class SystemManger:
             else:
                 if result._data is not None:
                     head2data = {}
-                    for head, data in zip(result)
-
-
+                    for head, data in zip(result.headers, zip(*result.data)):
+                        head2data[head] = data
+                    data = getSelected(head2data)
+                else:
+                    data = (None, ) * len(result.headers)
         else:
             def getRow(group):
                 head2data = {}
                 for head, data in zip(result._headers, zip(*group)):
                     head2data[head] = data
                 return getSelected(head2data)
-            index = result.get_header_index(groupBy)
+            index = result.header_id(groupBy)
             groups = {}
             for row in result._data:
                 if groups.get(row[index]) is None:
@@ -667,10 +669,38 @@ class SystemManger:
                 return LookupOutput(result._headers, tuple(group[0] for group in groups.values()))
             data = tuple(map(getRow, groups.values()))
 
+        headers = []
+        for reducer in reducers:
+            headers.append(reducer.to_string(len(tables) > 1))
+        return LookupOutput(tuple(headers), data)
+
+    def selectRecordsLimit(self, reducers, tables, limits, groupBy, limit: int, off: int):
+        result = self.selectRecords(reducers, tables, limits, groupBy)
+        if limit is None:
+            data = result.data[off:]
+        else:
+            data = result.data[off: off + limit]
+        return LookupOutput(result.headers, data)
 
 
     def condScanIndex(self, table: str, limits: tuple):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        records, data = self.searchRecordIndex(table, limits)
+        headers = tuple(tableInfo.name + "." + colName for colName in tableInfo.columnMap.keys())
+        return LookupOutput(headers, data)
 
+    @staticmethod
+    def resultToValue(self, result: LookupOutput, is_in):
+        if len(result.headers) <= 1:
+            val = sum(result.data, ())
+            if not is_in:
+                if len(result.data) == 1:
+                    val, = val
+                raise ValueError("expect one value, get " + str(len(result.data)))
+            return val
+        raise SelectError("expect one column, get " + str(len(result.headers)))
 
     @staticmethod
     def printResults(result: LookupOutput):
