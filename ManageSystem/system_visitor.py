@@ -7,6 +7,7 @@ import time
 from system_manager import SystemManger
 from lookup_element import Reducer, Term, LookupOutput, Join
 
+
 # todo:move to SQL_parser
 class SystemVisitor(SQLVisitor):
     def __init__(self, system_manager=None):
@@ -14,7 +15,8 @@ class SystemVisitor(SQLVisitor):
         self.system_manager: SystemManger = system_manager
         self.time_begin = None
 
-    def to_str(self, context):
+    @staticmethod
+    def to_str(context):
         if isinstance(context, ParserRuleContext):
             context = context.getText()
             res = str(context)
@@ -28,7 +30,7 @@ class SystemVisitor(SQLVisitor):
         int_context = int(str_context)
         return int_context
 
-    def to_float(self,context):
+    def to_float(self, context):
         str_context = self.to_str(context)
         float_context = float(str_context)
         return float_context
@@ -84,6 +86,7 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#create_table.
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
         pass
+
     ## todo:fix
     # columns, foreign_keys, primary = ctx.field_list().accept(self)
     # table_name = self.to_str(ctx.Identifier())
@@ -258,10 +261,9 @@ class SystemVisitor(SQLVisitor):
         value = ctx.expression().accept(self)
         if isinstance(value, tuple):
             return Term(1, table_name, col_name, operator,
-                             aim_table_name=value[0], aim_col=value[1])
+                        aim_table_name=value[0], aim_col=value[1])
         else:
             return Term(1, table_name, col_name, operator, value=value)
-
 
     # Visit a parse tree produced by SQLParser#where_operator_select.
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
@@ -270,7 +272,6 @@ class SystemVisitor(SQLVisitor):
         result: LookupOutput = ctx.select_table().accept(self)
         value = self.system_manager.resultToValue(result, False)
         return Term(1, table_name, column_name, operator, value=value)
-
 
     # Visit a parse tree produced by SQLParser#where_null.
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
@@ -284,7 +285,6 @@ class SystemVisitor(SQLVisitor):
         value_list = ctx.value_list().accept(self)
         return Term(2, table_name, col_name, value=value_list)
 
-
     # Visit a parse tree produced by SQLParser#where_in_select.
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
         table_name, col_name = ctx.column().accept(self)
@@ -296,7 +296,6 @@ class SystemVisitor(SQLVisitor):
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
         table_name, col_name = ctx.column().accept(self)
         return Term(3, table_name, col_name, value=self.to_str(ctx.String())[1:-1])
-
 
     # Visit a parse tree produced by SQLParser#column.
     def visitColumn(self, ctx: SQLParser.ColumnContext):
@@ -318,7 +317,6 @@ class SystemVisitor(SQLVisitor):
             return Reducer(0, '*', '*'),
         return tuple(item.accept(self) for item in ctx.selector())
 
-
     # Visit a parse tree produced by SQLParser#selector.
     def visitSelector(self, ctx: SQLParser.SelectorContext):
         if ctx.Count():
@@ -328,8 +326,6 @@ class SystemVisitor(SQLVisitor):
             return Reducer(2, table_name, column_name, self.to_str(ctx.aggregator()))
         return Reducer(1, table_name, column_name)
 
-
     # Visit a parse tree produced by SQLParser#identifiers.
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
         return tuple(self.to_str(item) for item in ctx.Identifier())
-
