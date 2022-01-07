@@ -8,7 +8,6 @@ from datetime import date
 import re
 from typing import Tuple
 from .system_visitor import SystemVisitor
-from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
 from RecordSystem.RecordManager import RecordManager
 from RecordSystem.FileScan import FileScan
@@ -34,8 +33,8 @@ class SystemManger:
         self.RM = rm
         self.metaHandlers = {}
         self.databaselist = []
-        for dir in syspath.iterdir():
-            self.databaselist.append(dir.name)
+        for item in syspath.iterdir():
+            self.databaselist.append(item.name)
         self.inUse = None
         self.visitor.manager = self
 
@@ -174,7 +173,7 @@ class SystemManger:
             metaHandler.createIndex(index, table, col)
             return
         indexFile = self.IM.create_index(self.inUse, table)
-        tableInfo.index[col] = indexFile._root
+        tableInfo.index[col] = indexFile.root
 
         if tableInfo.getColumnIndex(col) is not None:
             colIndex = tableInfo.getColumnIndex(col)
@@ -217,7 +216,7 @@ class SystemManger:
                 self.createIndex(indexName, foreign[0], foreign[1])
         return
 
-    def removeForeign(self, table: str, col: str, forName=None):
+    def removeForeign(self, table, col, forName=None):
         metaHandler, tableInfo = self.collectTableinfo(table)
         if forName:
             if metaHandler.databaseInfo.indexMap.get(forName):
@@ -333,7 +332,7 @@ class SystemManger:
         for record, oldVal in zip(records, data):
             new = list(oldVal)
             for col in valmap:
-                 new[tableInfo.getColumnIndex(col)] = valmap.get(col)
+                new[tableInfo.getColumnIndex(col)] = valmap.get(col)
             self.checkRemoveConstraint(table, oldVal)
             rid = record.rid
             self.checkInsertConstraint(table, new, rid)
@@ -343,19 +342,19 @@ class SystemManger:
             self.handleInsertIndex(table, tuple(new), rid)
         return LookupOutput('updated_items', (len(records),))
 
-
     def indexFilter(self, table: str, limits: tuple) -> set:
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
         tableInfo = metaHandler.collectTableInfo(table)
         condIndex = {}
+
         def build(limit: Term):
-            if limit._type != 1 or (limit.table and limit.table != table):
+            if limit.type != 1 or (limit.table and limit.table != table):
                 return None
             colIndex = tableInfo.getColumnIndex(limit.col)
-            if colIndex and limit._value and limit.col in tableInfo.index:
+            if colIndex and limit.value and limit.col in tableInfo.index:
                 lo, hi = condIndex.get(limit.col, (-1 << 31 + 1, 1 << 31))
-                val = int(limit._value)
+                val = int(limit.value)
                 if limit.operator == "=":
                     lower = max(lo, val)
                     upper = min(hi, val)
@@ -369,7 +368,7 @@ class SystemManger:
                     lower = lo
                     upper = min(hi, val)
                 elif limit.operator == ">=":
-                    lower =max(lo, val)
+                    lower = max(lo, val)
                     upper = hi
                 else:
                     return None
@@ -516,41 +515,43 @@ class SystemManger:
                 index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
                 index.delete(NULL_VALUE, rid)
         return
+
     def buildConditionsFuncs(self, table: str, limits, metahandler):
         tableInfo = metahandler.collectTableInfo(table)
+
         def build(limit: Term):
             if limit.table is not None and limit.table != table:
-                return  None
+                return None
             colIndex = tableInfo.getColumnIndex(limit.col)
             if colIndex:
                 colType = tableInfo.columnType[colIndex]
-                if limit._type == 1:
+                if limit.type == 1:
                     if limit.aim_col is not None:
                         if limit.aim_table == table:
                             return self.compare(colIndex, limit.operator, tableInfo.getColumnIndex(limit.aim_col))
                         return None
                     else:
                         if colType == "DATE":
-                            if type(limit._value) not in (str, date):
+                            if type(limit.value) not in (str, date):
                                 raise ValueTypeError("need str/date here")
-                            val = limit._value
+                            val = limit.value
                             if type(val) is date:
                                 return self.compareV(colIndex, limit.operator, val)
                             valist = val.replace("/", "-").split("-")
                             return self.compareV(colIndex, limit.operator, date(*map(int, valist)))
                         elif colType in ("INT", "FLOAT"):
-                            if isinstance(limit._value, (int, float)):
-                                return self.compareV(colIndex, limit.operator, limit._value)
+                            if isinstance(limit.value, (int, float)):
+                                return self.compareV(colIndex, limit.operator, limit.value)
                             raise ValueTypeError("need int/float here")
                         elif colType == "VARCHAR":
-                            if isinstance(limit._value, str):
-                                return self.compareV(colIndex, limit.operator, limit._value)
+                            if isinstance(limit.value, str):
+                                return self.compareV(colIndex, limit.operator, limit.value)
                             raise ValueTypeError("need varchar here")
                         raise ValueTypeError("limit value error")
-                elif limit._type == 2:
+                elif limit.type == 2:
                     if colType == "DATE":
                         values = []
-                        for val in limit._value:
+                        for val in limit.value:
                             if type(val) is str:
                                 valist = val.replace("/", "-").split("-")
                                 values.append(date(*map(int, valist)))
@@ -558,19 +559,20 @@ class SystemManger:
                                 values.append(val)
                             raise ValueTypeError("need str/date here")
                         return lambda x: x[colIndex] in tuple(values)
-                    return lambda x: x[colIndex] in limit._value
-                elif limit._type == 3:
+                    return lambda x: x[colIndex] in limit.value
+                elif limit.type == 3:
                     if colType == "VARCHAR":
-                        return lambda x: self.buildPattern(limit._value).match(str(x[colIndex]))
+                        return lambda x: self.buildPattern(limit.value).match(str(x[colIndex]))
                     raise ValueTypeError("like need varchar here")
-                elif limit._type == 0:
-                    if isinstance(limit._value, bool):
-                        if limit._value:
+                elif limit.type == 0:
+                    if isinstance(limit.value, bool):
+                        if limit.value:
                             return lambda x: x[colIndex] is None
                         return lambda x: x[colIndex] is not None
                     raise ValueTypeError("limit value need bool here")
                 raise ValueTypeError("limit type unknown")
             raise ColumnNotExist("limit column name unknown")
+
         results = []
         for limit in limits:
             func = build(limit)
@@ -582,6 +584,7 @@ class SystemManger:
                       limits: Tuple[Term], groupBy: Tuple[str, str]):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
+
         def getSelected(col2data):
             col2data['*.*'] = next(iter(col2data.values()))
             return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
@@ -597,6 +600,7 @@ class SystemManger:
                     raise SameNameError(getattr(object, colName) + " exists in multiple tables")
                 setattr(object, tableName, tabs[0])
             return
+
         col2tab = metaHandler.getColumn2Table(tables)
         groupTable, groupCol = groupBy
         for element in limits + reducers:
@@ -610,11 +614,12 @@ class SystemManger:
         groupBy = groupTable + '.' + groupCol
         reducerTypes = []
         for reducer in reducers:
-            reducerTypes.append(reducer._reducer_type)
+            reducerTypes.append(reducer.reducer_type)
         reducerTypes = set(reducerTypes)
         if groupCol is None and 1 in reducerTypes and len(reducerTypes) > 1:
             raise SelectError("no-group select contains both field and aggregations")
-        if not reducers and groupCol is None and len(tables) == 1 and reducers[0]._reducer_type == 3:
+
+        if not reducers and groupCol is None and len(tables) == 1 and reducers[0].reducer_type == 3:
             tableInfo = metaHandler.collectTableInfo(tables[0])
             fileHandler = self.RM.openFile(self.getTablePath(tables[0]))
             return LookupOutput((reducers[0].to_string(False),), (fileHandler.head['AllRecord']))
@@ -628,7 +633,7 @@ class SystemManger:
             result = self.condJoin(tab2results, limits)
 
         if groupCol is None:
-            if reducers[0]._reducer_type == 0:
+            if reducers[0].reducer_type == 0:
                 if len(reducers) == 1:
                     return result
                 raise SelectError("reducer num not 1")
@@ -641,32 +646,35 @@ class SystemManger:
                 for head in headers:
                     headindexes.append(result.header_id(head))
                 indexes = tuple(headindexes)
+
                 def takeCol(row):
                     return tuple(row[ele] for ele in indexes)
-                data = tuple(map(takeCol, result._data))
+
+                data = tuple(map(takeCol, result.data))
             else:
-                if result._data is not None:
+                if result.data is not None:
                     head2data = {}
                     for head, data in zip(result.headers, zip(*result.data)):
                         head2data[head] = data
                     data = getSelected(head2data)
                 else:
-                    data = (None, ) * len(result.headers)
+                    data = (None,) * len(result.headers)
         else:
             def getRow(group):
                 head2data = {}
-                for head, data in zip(result._headers, zip(*group)):
-                    head2data[head] = data
+                for item_head, item_data in zip(result.headers, zip(*group)):
+                    head2data[item_head] = item_data
                 return getSelected(head2data)
+
             index = result.header_id(groupBy)
             groups = {}
-            for row in result._data:
+            for row in result.data:
                 if groups.get(row[index]) is None:
                     groups[row[index]] = [row]
                 else:
                     groups[row[index]].append(row)
-            if reducers[0]._reducer_type == 0:
-                return LookupOutput(result._headers, tuple(group[0] for group in groups.values()))
+            if reducers[0].reducer_type == 0:
+                return LookupOutput(result.headers, tuple(group[0] for group in groups.values()))
             data = tuple(map(getRow, groups.values()))
 
         headers = []
@@ -682,7 +690,6 @@ class SystemManger:
             data = result.data[off: off + limit]
         return LookupOutput(result.headers, data)
 
-
     def condScanIndex(self, table: str, limits: tuple):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
@@ -692,7 +699,7 @@ class SystemManger:
         return LookupOutput(headers, data)
 
     @staticmethod
-    def resultToValue(self, result: LookupOutput, is_in):
+    def resultToValue(result: LookupOutput, is_in):
         if len(result.headers) <= 1:
             val = sum(result.data, ())
             if not is_in:

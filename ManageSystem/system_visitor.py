@@ -1,11 +1,10 @@
 from MetaSystem.info import TableInfo, ColumnInfo
 from SQL_Parser.SQLVisitor import SQLVisitor
 from SQL_Parser.SQLParser import SQLParser
-from SQL_Parser.SQLLexer import SQLLexer
 from antlr4 import ParserRuleContext
 import time
 from system_manager import SystemManger
-from lookup_element import Reducer, Term, LookupOutput, Join
+from lookup_element import Reducer, Term, LookupOutput
 
 
 # todo:move to SQL_parser
@@ -45,12 +44,6 @@ class SystemVisitor(SQLVisitor):
             self.time_begin = time.time()
             return time_end - time_begin
 
-    def aggregate_result(self, aggregate, next_result):
-        if next_result is None:
-            return aggregate
-        else:
-            return next_result
-
     # Visit a parse tree produced by SQLParser#program.
     def visitProgram(self, ctx: SQLParser.ProgramContext):
         # todo:add
@@ -85,16 +78,14 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#create_table.
     def visitCreate_table(self, ctx: SQLParser.Create_tableContext):
-        pass
-
-    ## todo:fix
-    # columns, foreign_keys, primary = ctx.field_list().accept(self)
-    # table_name = self.to_str(ctx.Identifier())
-    # res = self.system_manager.createTable(TableInfo(table_name, columns))
-    # for col in foreign_keys:
-    #     self.system_manager.addForeign(table_name, col, foreign_keys[col])
-    # self.system_manager.setPrimary(table_name, primary)
-    # return res
+        # todo:fix
+        columns, foreign_keys, primary = ctx.field_list().accept(self)
+        table_name = self.to_str(ctx.Identifier())
+        res = self.system_manager.createTable(TableInfo(table_name, columns))
+        for col in foreign_keys:
+            self.system_manager.addForeign(table_name, col, foreign_keys[col])
+        self.system_manager.setPrimary(table_name, primary)
+        return res
 
     # Visit a parse tree produced by SQLParser#drop_table.
     def visitDrop_table(self, ctx: SQLParser.Drop_tableContext):
@@ -108,17 +99,17 @@ class SystemVisitor(SQLVisitor):
     def visitInsert_into_table(self, ctx: SQLParser.Insert_into_tableContext):
         data = ctx.value_lists().accept(self)
         for item in data:
-            self.system_manager.addRecord(self.to_str(ctx.getChild(2)), item)
+            self.system_manager.insertRecord(self.to_str(ctx.getChild(2)), item)
         return LookupOutput('inserted_items', (len(data),))
 
     # Visit a parse tree produced by SQLParser#delete_from_table.
     def visitDelete_from_table(self, ctx: SQLParser.Delete_from_tableContext):
-        return self.system_manager.removeRecord(self.to_str(ctx.Identifier()), ctx.where_and_clause().accept(self))
+        return self.system_manager.deleteRecords(self.to_str(ctx.Identifier()), ctx.where_and_clause().accept(self))
 
     # Visit a parse tree produced by SQLParser#update_table.
     def visitUpdate_table(self, ctx: SQLParser.Update_tableContext):
-        return self.system_manager.updateRecord(self.to_str(ctx.Identifier()), ctx.where_and_clause().accept(self),
-                                                ctx.set_clause().accept(self))
+        return self.system_manager.updateRecords(self.to_str(ctx.Identifier()), ctx.where_and_clause().accept(self),
+                                                 ctx.set_clause().accept(self))
 
     # Visit a parse tree produced by SQLParser#select_table.
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
@@ -137,7 +128,7 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#drop_index.
     def visitDrop_index(self, ctx: SQLParser.Drop_indexContext):
-        return self.system_manager.drop_index(self.to_str(ctx.Identifier()))
+        return self.system_manager.removeIndex(self.to_str(ctx.Identifier()))
 
     # Visit a parse tree produced by SQLParser#alter_add_index.
     def visitAlter_add_index(self, ctx: SQLParser.Alter_add_indexContext):
@@ -270,7 +261,7 @@ class SystemVisitor(SQLVisitor):
         table_name, column_name = ctx.column().accept(self)
         operator = self.to_str(ctx.operator())
         result: LookupOutput = ctx.select_table().accept(self)
-        value = self.system_manager.resultToValue(result, False)
+        value = self.system_manager.resultToValue(result=result, is_in=False)
         return Term(1, table_name, column_name, operator, value=value)
 
     # Visit a parse tree produced by SQLParser#where_null.
