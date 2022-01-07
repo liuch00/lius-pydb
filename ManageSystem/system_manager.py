@@ -350,7 +350,7 @@ class SystemManger:
         tableInfo = metaHandler.collectTableInfo(table)
         condIndex = {}
         def build(limit: Term):
-            if limit._type != 1 or (limit.table and limit.table != table)
+            if limit._type != 1 or (limit.table and limit.table != table):
                 return None
             colIndex = tableInfo.getColumnIndex(limit.col)
             if colIndex and limit._value and limit.col in tableInfo.index:
@@ -614,7 +614,7 @@ class SystemManger:
         reducerTypes = set(reducerTypes)
         if groupCol is None and 1 in reducerTypes and len(reducerTypes) > 1:
             raise SelectError("no-group select contains both field and aggregations")
-        if reducers is None and groupCol is None and len(tables) == 1 and reducers[0]._reducer_type == 3:
+        if not reducers and groupCol is None and len(tables) == 1 and reducers[0]._reducer_type == 3:
             tableInfo = metaHandler.collectTableInfo(tables[0])
             fileHandler = self.RM.openFile(self.getTablePath(tables[0]))
             return LookupOutput((reducers[0].to_string(False),), (fileHandler.head['AllRecord']))
@@ -698,6 +698,7 @@ class SystemManger:
             if not is_in:
                 if len(result.data) == 1:
                     val, = val
+                    return val
                 raise ValueError("expect one value, get " + str(len(result.data)))
             return val
         raise SelectError("expect one column, get " + str(len(result.headers)))
