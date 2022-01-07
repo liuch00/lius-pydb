@@ -22,6 +22,7 @@ from SQL_Parser.SQLLexer import SQLLexer
 from SQL_Parser.SQLParser import SQLParser
 from MetaSystem.info import TableInfo, ColumnInfo
 from .macro import *
+from .printers import TablePrinter
 
 
 class SystemManger:
