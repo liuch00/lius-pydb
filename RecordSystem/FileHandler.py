@@ -2,14 +2,14 @@
 import numpy as np
 from json import loads
 
-from .RecordManager import RecordManager
+# from .RecordManager import RecordManager
 from .macro import *
 from .rid import RID
 from .record import Record
 
 class FileHandler:
 
-    def __init__(self, rm: RecordManager, fid: int, name: str):
+    def __init__(self, rm, fid: int, name: str):
         self.RM = rm
         self.fileID = fid
         self.name = name
@@ -109,12 +109,12 @@ class FileHandler:
         bitmap = self.getBitmap(page)
         bitmapLen = self.head['BitmapLen']
         self.head['AllRecord'] -= 1
-        if bitmap[rid.slot] is False:
+        if bitmap[rid.slot] == 0:
             bitmap[rid.slot] = True
         self.headChanged = True
 
-        bitmap = np.packbits(bitmap)
-        page[RECORD_PAGE_FIXED_HEADER: RECORD_PAGE_FIXED_HEADER + bitmapLen] = bitmap
+        # bitmap = np.packbits(bitmap)
+        page[RECORD_PAGE_FIXED_HEADER: RECORD_PAGE_FIXED_HEADER + bitmapLen] = np.packbits(bitmap)
         if self.getNextAvai(page) == rid.page:
             self.setNextAvai(page, self.head['NextAvai'])
             self.head['NextAvai'] = rid.page

@@ -67,3 +67,9 @@ class SameNameError(MyException):
 
 class SelectError(MyException):
     pass
+
+class DateValueError(MyException):
+    pass
+
+class JoinError(MyException):
+    pass

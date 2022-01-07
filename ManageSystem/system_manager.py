@@ -7,7 +7,7 @@ from copy import deepcopy
 from datetime import date
 import re
 from typing import Tuple
-from .system_visitor import SystemVisitor
+# from .system_visitor import SystemVisitor
 from FileSystem.BufManager import BufManager
 from RecordSystem.RecordManager import RecordManager
 from RecordSystem.FileScan import FileScan
@@ -26,7 +26,7 @@ from .printers import TablePrinter
 
 
 class SystemManger:
-    def __init__(self, visitor: SystemVisitor, syspath: Path, bm: BufManager, rm: RecordManager, im: IndexManager):
+    def __init__(self, visitor, syspath: Path, bm: BufManager, rm: RecordManager, im: IndexManager):
         self.visitor = visitor
         self.systemPath = syspath
         self.BM = bm
@@ -37,7 +37,7 @@ class SystemManger:
         for item in syspath.iterdir():
             self.databaselist.append(item.name)
         self.inUse = None
-        self.visitor.manager = self
+        self.visitor.system_manager = self
 
     def shutdown(self):
         self.IM.close_manager()
@@ -190,7 +190,7 @@ class SystemManger:
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
         table, col = metaHandler.databaseInfo.getIndex(index)
-        metaHandler.collectTableInfo(table).indexes.pop(col)
+        metaHandler.collectTableInfo(table).index.pop(col)
         metaHandler.removeIndex(index)
         self.metaHandlers.pop(self.inUse).shutdown()
         return
@@ -353,7 +353,7 @@ class SystemManger:
             if limit.type != 1 or (limit.table and limit.table != table):
                 return None
             colIndex = tableInfo.getColumnIndex(limit.col)
-            if colIndex and limit.value and limit.col in tableInfo.index:
+            if colIndex is not None and limit.value is not None and limit.col in tableInfo.index:
                 lo, hi = condIndex.get(limit.col, (-1 << 31 + 1, 1 << 31))
                 val = int(limit.value)
                 if limit.operator == "=":
@@ -524,10 +524,10 @@ class SystemManger:
             if limit.table is not None and limit.table != table:
                 return None
             colIndex = tableInfo.getColumnIndex(limit.col)
-            if colIndex:
+            if colIndex is not None:
                 colType = tableInfo.columnType[colIndex]
                 if limit.type == 1:
-                    if limit.aim_col is not None:
+                    if limit.aim_col:
                         if limit.aim_table == table:
                             return self.compare(colIndex, limit.operator, tableInfo.getColumnIndex(limit.aim_col))
                         return None
@@ -594,10 +594,10 @@ class SystemManger:
             if getattr(object, colName) is None:
                 return
             elif getattr(object, tableName) is None:
-                tabs = col2tab[getattr(object, colName)]
-                if tables is None:
+                tabs = col2tab.get(getattr(object, colName))
+                if not tabs:
                     raise ColumnNotExist(getattr(object, colName) + " unknown")
-                elif len(tables) > 1:
+                elif len(tabs) > 1:
                     raise SameNameError(getattr(object, colName) + " exists in multiple tables")
                 setattr(object, tableName, tabs[0])
             return
@@ -606,21 +606,21 @@ class SystemManger:
         groupTable, groupCol = groupBy
         for element in limits + reducers:
             if not isinstance(element, Term):
-                setTableName(element, 'table_name', 'column_name')
+                setTableName(element, '_table_name', '_col')
             else:
-                setTableName(element, 'aim_table', 'aim_column')
+                setTableName(element, 'aim_table', 'aim_col')
 
-        if groupTable is None:
-            groupTable = tables[0]
+        groupTableName = groupTable or tables[0]
+        groupTable = groupTableName
         groupBy = groupTable + '.' + groupCol
         reducerTypes = []
         for reducer in reducers:
             reducerTypes.append(reducer.reducer_type)
         reducerTypes = set(reducerTypes)
-        if groupCol is None and 1 in reducerTypes and len(reducerTypes) > 1:
+        if not groupCol and 1 in reducerTypes and len(reducerTypes) > 1:
             raise SelectError("no-group select contains both field and aggregations")
 
-        if not reducers and groupCol is None and len(tables) == 1 and reducers[0].reducer_type == 3:
+        if not reducers and not groupCol and len(tables) == 1 and reducers[0].reducer_type == 3:
             tableInfo = metaHandler.collectTableInfo(tables[0])
             fileHandler = self.RM.openFile(self.getTablePath(tables[0]))
             return LookupOutput((reducers[0].to_string(False),), (fileHandler.head['AllRecord']))
@@ -633,7 +633,7 @@ class SystemManger:
         else:
             result = self.condJoin(tab2results, limits)
 
-        if groupCol is None:
+        if not groupCol:
             if reducers[0].reducer_type == 0:
                 if len(reducers) == 1:
                     return result

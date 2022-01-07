@@ -3,8 +3,8 @@ from SQL_Parser.SQLVisitor import SQLVisitor
 from SQL_Parser.SQLParser import SQLParser
 from antlr4 import ParserRuleContext
 import time
-from system_manager import SystemManger
-from lookup_element import Reducer, Term, LookupOutput
+from .system_manager import SystemManger
+from .lookup_element import Reducer, Term, LookupOutput
 
 
 # todo:move to SQL_parser
@@ -43,6 +43,10 @@ class SystemVisitor(SQLVisitor):
             time_begin = self.time_begin
             self.time_begin = time.time()
             return time_end - time_begin
+
+
+    def aggregateResult(self, aggregate, next_result):
+        return aggregate if next_result is None else next_result
 
     # Visit a parse tree produced by SQLParser#program.
     def visitProgram(self, ctx: SQLParser.ProgramContext):

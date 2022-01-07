@@ -1,5 +1,5 @@
-from lookup_element import Term, LookupOutput
-
+from .lookup_element import Term, LookupOutput
+from Exceptions.exception import JoinError
 
 class Join:
     def __init__(self, res_map: dict, term, union=None):
@@ -36,6 +36,9 @@ class Join:
                     element_0 = [element[0]]
                     element_1 = [element[1]]
                     self._join_map[key] = (element_0, element_1)
+        if not self._join_map:
+            raise JoinError('Join tables errors!!!!')
+        self._union = {key: key for key in self.res_map.keys()}
 
     def union_search(self, element):
         if element != self._union[element]:
@@ -55,12 +58,14 @@ class Join:
             outside: LookupOutput = self.res_map[each_pair_0]
             each_pair_1 = each_pair[1]
             inside: LookupOutput = self.res_map[each_pair_1]
-            outside_joined = tuple(each_pair_0 + ".")
-            for each_0 in self._join_map[each_pair][0]:
-                outside_joined += tuple(each_0)
-            inside_joined = tuple(each_pair_1 + ".")
-            for each_1 in self._join_map[each_pair][1]:
-                inside_joined += tuple(each_1)
+            # outside_joined = tuple(each_pair_0 + ".")
+            outside_joined = tuple(each_pair_0 + "." + col for col in self._join_map[each_pair][0])
+            inside_joined = tuple(each_pair_1 + "." + col for col in self._join_map[each_pair][1])
+            # for each_0 in self._join_map[each_pair][0]:
+            #     outside_joined += tuple(each_0)
+            # inside_joined = tuple(each_pair_1 + ".")
+            # for each_1 in self._join_map[each_pair][1]:
+            #     inside_joined += tuple(each_1)
             new_res = self.loop_join(outside, inside, outside_joined, inside_joined)
             self.union_merge(each_pair_0, each_pair_1)
             new_key = self.union_search(each_pair_0)
@@ -70,9 +75,10 @@ class Join:
 
     @staticmethod
     def get_values(value: tuple, block: tuple):
-        res = ()
-        for item in block:
-            res = res + (value[item])
+        # res = ()
+        # for item in block:
+        #     res = res + (value[item])
+        res = tuple(value[i] for i in block)
         return res
 
     def create_join_value(self, outside: tuple, outside_joined: tuple):

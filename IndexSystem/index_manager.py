@@ -1,8 +1,8 @@
-from index_handler import IndexHandler
-from file_index import FileIndex
+from .index_handler import IndexHandler
+from .file_index import FileIndex
 from typing import Dict
-from ..FileSystem import BufManager
-from FileIndexID import FileIndexID
+from FileSystem.BufManager import BufManager
+from .FileIndexID import FileIndexID
 
 
 class IndexManager:
@@ -25,14 +25,23 @@ class IndexManager:
     def shut_handler(self, database_name):
         if database_name in self._started_index_handler:
             index_handler = self._started_index_handler.pop(database_name)
-            for ID in self._started_file_index:
-                file_index = self._started_file_index.get(ID)
-                if file_index.handler is index_handler:
-                    # shut index
-                    if ID in self._started_file_index:
-                        tmp_file_index = self._started_file_index.pop(ID)
-                        if tmp_file_index.is_modified:
-                            tmp_file_index.pour()
+            for key, file_index in tuple(self._started_file_index.items()):
+                if file_index.handler is not index_handler:
+                    continue
+                if (key._table_name, key._file_index_root_id) not in self._started_index_handler:
+                    return None
+                tmp_file_index = self._started_index_handler.pop((key._table_name, key._file_index_root_id))
+                if tmp_file_index.is_modified:
+                    tmp_file_index.pour()
+            return True
+            # for ID in self._started_file_index:
+            #     file_index = self._started_file_index.get(ID)
+            #     if file_index.handler is index_handler:
+            #         # shut index
+            #         if ID in self._started_file_index:
+            #             tmp_file_index = self._started_file_index.pop(ID)
+            #             if tmp_file_index.is_modified:
+            #                 tmp_file_index.pour()
         else:
             return False
 

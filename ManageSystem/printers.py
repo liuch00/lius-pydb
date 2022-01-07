@@ -4,6 +4,7 @@ from prettytable import PrettyTable
 from sys import stderr, stdout
 from typing import List
 from .lookup_element import LookupOutput
+from datetime import timedelta
 
 class TablePrinter:
     def __init__(self):
@@ -14,10 +15,10 @@ class TablePrinter:
         table.field_names = result.headers
         table.add_rows(result.data)
         if not len(result.data):
-            print("Empty set in " + f'{result._cost.total_seconds():.3f}' + " seconds")
+            print("Empty set in " + f'{timedelta(result.cost).total_seconds():.3f}' + "ms")
         else:
             print(table.get_string())
-            print(f'{len(result.data)}' + ' results in ' + f'{result._cost.total_seconds():.3f} seconds')
+            print(f'{len(result.data)}' + ' results in ' + f'{timedelta(result.cost).total_seconds():.3f}ms')
         print()
 
     def messageReport(self, msg):
@@ -44,7 +45,7 @@ class TablePrinter:
 
     class MyPT(PrettyTable):
         def _format_value(self, field, value):
-            if value:
+            if value is not None:
                 return super()._format_value(field, value)
             return 'NULL'
 

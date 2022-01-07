@@ -22,7 +22,7 @@ class ColumnInfo:
 
     def getDESC(self):
         """name, type, null, keytype, default, extra"""
-        return [self.name, self.type, "N", "", self.default, ""]
+        return [self.name, self.type, "NO", "", self.default, ""]
 
 
 class TableInfo:
@@ -32,8 +32,8 @@ class TableInfo:
         self.primary = None
 
         self.columnMap = {col.name: col for col in self.contents}
-        self.columnType = [col.getSize() for col in self.contents]
-        self.columnSize = [col.type for col in self.contents]
+        self.columnSize = [col.getSize() for col in self.contents]
+        self.columnType = [col.type for col in self.contents]
         self.foreign = {}
         self.index = {}
         self.rowSize = sum(self.columnSize)
@@ -42,15 +42,16 @@ class TableInfo:
 
     def describe(self):
         desc = {col.name: col.getDESC() for col in self.contents}
-        for name in self.primary:
-            desc[name][3] = 'primary'
+        if self.primary:
+            for name in self.primary:
+                desc[name][3] = 'primary'
         for name in self.foreign:
             if desc[name][3] is not None:
                 desc[name][3] = 'multi'
             else:
                 desc[name][3] = 'foreign'
         for name in self.unique:
-            if desc[name][3] is "":
+            if desc[name][3] == "":
                 desc[name][3] = 'unique'
         return tuple(desc.values())
 
@@ -58,8 +59,8 @@ class TableInfo:
         if col.name not in self.columnMap:
             self.contents.append(col)
             self.columnMap = {col.name: col for col in self.contents}
-            self.columnType = [col.getSize() for col in self.contents]
-            self.columnSize = [col.type for col in self.contents]
+            self.columnSize = [col.getSize() for col in self.contents]
+            self.columnType = [col.type for col in self.contents]
             self.rowSize = sum(self.columnSize)
             self.columnIndex = {self.contents[i].name: i for i in range(len(self.contents))}
         else:
@@ -71,8 +72,8 @@ class TableInfo:
         if name in self.columnMap:
             self.contents.pop(self.columnIndex.get(name))
             self.columnMap = {col.name: col for col in self.contents}
-            self.columnType = [col.getSize() for col in self.contents]
-            self.columnSize = [col.type for col in self.contents]
+            self.columnSize = [col.getSize() for col in self.contents]
+            self.columnType = [col.type for col in self.contents]
             self.rowSize = sum(self.columnSize)
             self.columnIndex = {self.contents[i].name: i for i in range(len(self.contents))}
         else:
@@ -132,9 +133,15 @@ class TableInfo:
                 return struct.pack('<q', val)
         else:
             if type == "DATE":
-                val = val.replace("/", "-")
-                vals = val.split("-")
-                d = date(*map(int, vals))
+                try:
+                    val = val.replace("/", "-")
+                    vals = val.split("-")
+                except AttributeError:
+                    raise DateValueError("date value invalid")
+                try:
+                    d = date(*map(int, vals))
+                except ValueError:
+                    raise DateValueError("date value invalid")
                 return struct.pack('<q', d.toordinal())
             elif type == "INT":
                 if isinstance(val, int):
@@ -165,7 +172,7 @@ class TableInfo:
                 if data[0]:
                     val = None
                 else:
-                    val = data.tobytes()[1:0].rstrip(b'\x00').decode('utf-8')
+                    val = data.tobytes()[1:].rstrip(b'\x00').decode('utf-8')
             elif type == "DATE" or type == "INT":
                 val = struct.unpack('<q', data)[0]
                 if val > 0 and type == "DATE":

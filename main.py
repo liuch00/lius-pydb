@@ -59,5 +59,7 @@ if __name__ == '__main__':
                 break
             if sql.endswith(';'):
                 result = manager.execute(sql)
+                printer.print(result)
+                sql = ''
 
     manager.shutdown()

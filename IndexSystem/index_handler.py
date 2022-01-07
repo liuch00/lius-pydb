@@ -8,7 +8,8 @@ class IndexHandler:
     def __init__(self, buf_manager: BufManager, database_name, home_directory):
         self._manager = buf_manager
         index_file_name = database_name + macro.INDEX_NAME
-        index_file_path = home_directory + '/' + database_name + '/' + index_file_name
+        # index_file_path = home_directory + '/' + database_name + '/' + index_file_name
+        index_file_path = home_directory / database_name / index_file_name
         if not self._manager.fileExist(index_file_path):
             self._manager.createFile(index_file_path)
         self._file_id = self._manager.openFile(index_file_path)

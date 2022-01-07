@@ -143,3 +143,11 @@ class LookupOutput:
     @property
     def alias_map(self):
         return self._alias_map
+
+    @property
+    def cost(self):
+        return self._cost
+
+    @cost.setter
+    def cost(self, value):
+        self._cost = value

@@ -38,7 +38,7 @@ class LeafNode(BasicNode):
             upper = upper + 1
             cursor = cursor + 1
         for index in range(lower, upper):
-            if self._child_list == value:
+            if self._child_list[index] == value:
                 cursor = index
                 break
         if cursor != upper:
@@ -46,7 +46,7 @@ class LeafNode(BasicNode):
             self._child_list.pop(cursor)
             if len_key_list > 0:
                 if cursor == 0:
-                    return self._child_list[0]
+                    return self._child_key_list[0]
         else:
             return None
 

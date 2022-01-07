@@ -124,9 +124,8 @@ class MetaHandler:
         for table in tables:
             tableInfo = self.collectTableInfo(table)
             for col in tableInfo.columnMap.keys():
-                colInfo = tableInfo.columnMap.get(col)
                 if result.get(col) is None:
-                    result[col] = [colInfo]
+                    result[col] = [table]
                 else:
-                    result[col].append(colInfo)
+                    result[col].append(table)
         return result

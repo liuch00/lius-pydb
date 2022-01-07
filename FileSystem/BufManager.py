@@ -14,7 +14,7 @@ class BufManager:
         self.dirty = np.zeros(CAP, dtype=np.bool)
         self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
         self.replace = FindReplace(CAP)
-        self.index2FPID = np.zeros(CAP)
+        self.index2FPID = np.zeros(CAP, dtype=np.int64)
         for i in range(CAP):
             self.index2FPID[i] = -1
         self.FPID2index = {}
@@ -78,9 +78,8 @@ class BufManager:
             self.index2FPID[index] = -1
             self.FPID2index.pop(fpID)
             if self.dirty[index]:
-                fID = self.split_FPID(fpID)[0]
-                pID = self.split_FPID(fpID)[1]
-                self.FM.writePage(fID, pID, self.addr[index])
+                # fID, pID = self.split_FPID(fpID)
+                self.FM.writePage(*(self.split_FPID(fpID)), self.addr[index])
                 self.dirty[index] = False
         self.FM.closeFile(fileID)
         return

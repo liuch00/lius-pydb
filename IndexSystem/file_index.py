@@ -5,6 +5,8 @@ from RecordSystem.rid import RID
 # from ..RecordSystem.rid import RID
 import numpy as np
 from RecordSystem import macro
+
+
 # from ..RecordSystem import macro
 
 
@@ -119,3 +121,7 @@ class FileIndex:
     @property
     def handler(self):
         return self._handler
+
+    @property
+    def root(self):
+        return self._root

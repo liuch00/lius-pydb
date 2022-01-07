@@ -18,15 +18,15 @@ class RecordManager:
         self.BM.FM.createFile(name)
         fileID = self.BM.openFile(name)
 
-        self.BM.FM.newPage(fileID, self.toSerial(self.getHead(recordLen)))
+        self.BM.FM.newPage(fileID, self.toSerial(self.getHead(recordLen, name)))
         self.BM.closeFile(fileID)
         return
 
-    def getHead(self, recordLen: int):
+    def getHead(self, recordLen: int, name: str):
         recordNum = self.getRecordNum(recordLen)
         bitmapLen = self.getBitmapLen(recordNum)
         return {'RecordLen': recordLen, 'RecordNum': recordNum, 'PageNum': 1,
-                'AllRecord': 0, 'NextAvai': 0, 'BitmapLen': bitmapLen}
+                'AllRecord': 0, 'NextAvai': 0, 'BitmapLen': bitmapLen, 'filename': str(name)}
 
     def openFile(self, name: str):
         if name in self.opened:
@@ -38,7 +38,6 @@ class RecordManager:
 
     def destroyFile(self, name: str):
         self.BM.FM.destroyFile(name)
-        self.opened.pop(name)
         return
 
     def renameFile(self, src: str, dst: str):
@@ -74,9 +73,9 @@ class RecordManager:
         return num
 
     @staticmethod
-    def getBitmapLen(recordNum):
+    def getBitmapLen(recordNum: int) -> int:
         length = (recordNum + 7) / 8
-        return length
+        return int(length)
 
 
     def replaceFile(self, src: str, dst: str):
@@ -89,13 +88,13 @@ class RecordManager:
         return
 
     def shutdown(self):
-        for name in self.opened.keys():
+        for name in tuple(self.opened.keys()):
             self.closeFile(name)
 
     @staticmethod
     def toSerial(d: dict):
         serial = dumps(d, ensure_ascii=False).encode('utf-8')
-        empty = np.zeros(PAGE_SIZE, dtype=np.unit8)
+        empty = np.zeros(PAGE_SIZE, dtype=np.uint8)
         for i in range(len(serial)):
             empty[i] = list(serial)[i]
         return empty
