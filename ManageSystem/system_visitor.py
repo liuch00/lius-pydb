@@ -162,7 +162,8 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#alter_table_drop_foreign_key.
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
-        self.system_manager.removeForeign(None, None, self.to_str(ctx.Identifier(1)))
+        self.system_manager.removeForeign(self.to_str(ctx.Identifier(0)),self.to_str(ctx.Identifier(1)), None)
+        # self.system_manager.removeForeign(None, None, self.to_str(ctx.Identifier(1)))
 
     # Visit a parse tree produced by SQLParser#alter_table_add_pk.
     def visitAlter_table_add_pk(self, ctx: SQLParser.Alter_table_add_pkContext):

@@ -248,12 +248,16 @@ class SystemManger:
                 indexName = table + "." + column
                 if indexName in metaHandler.databaseInfo.indexMap:
                     self.removeIndex(indexName)
+            metaHandler.removePrimary(table)
         return
 
-    def addColumn(self, table: str, col: ColumnInfo):
+    def addColumn(self, table: str, col):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
         tableInfo = metaHandler.collectTableInfo(table)
+        if isinstance(col, tuple):
+            assert len(col) == 1
+            col = tableInfo.columnMap[col[0]]
         if tableInfo.getColumnIndex(col.name):
             print("OH NO")
             raise ColumnAlreadyExist(col.name + " exists")
