@@ -34,6 +34,14 @@ class Term:
     def aim_col(self):
         return self._aim_col
 
+    @property
+    def value(self):
+        return self._value
+
+    @property
+    def type(self):
+        return self._type
+
 
 class Reducer:
     """reducer_type:0 is all
@@ -74,6 +82,10 @@ class Reducer:
             return data[0]
         if self.type == 2:
             return function_map[self._aggregator](tuple(filter(lambda x: x is not None, data)))
+
+    @property
+    def reducer_type(self):
+        return self._reducer_type
 
 
 class LookupOutput:
