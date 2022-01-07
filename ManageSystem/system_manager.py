@@ -4,6 +4,9 @@ from antlr4 import InputStream, CommonTokenStream
 from antlr4.error.Errors import ParseCancellationException
 from antlr4.error.ErrorListener import ErrorListener
 from copy import deepcopy
+from datetime import date
+import re
+from typing import Tuple
 from .system_visitor import SystemVisitor
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
@@ -15,7 +18,7 @@ from RecordSystem.rid import RID
 from IndexSystem.index_manager import IndexManager
 from MetaSystem.MetaHandler import MetaHandler
 from Exceptions.exception import *
-from .lookup_element import LookupOutput, Term
+from .lookup_element import LookupOutput, Term, Reducer
 from SQL_Parser.SQLLexer import SQLLexer
 from SQL_Parser.SQLParser import SQLParser
 from MetaSystem.info import TableInfo, ColumnInfo
@@ -328,11 +331,63 @@ class SystemManger:
         tableInfo.checkValue(valmap)
         records, data = self.searchRecordIndex(table, limits)
         for record, oldVal in zip(records, data):
-
+            new = list(oldVal)
+            for col in valmap:
+                 new[tableInfo.getColumnIndex(col)] = valmap.get(col)
+            self.checkRemoveConstraint(table, oldVal)
+            rid = record.rid
+            self.checkInsertConstraint(table, new, rid)
+            self.handleRemoveIndex(table, oldVal, rid)
+            record.record = tableInfo.buildRecord(new)
+            fileHandler.updateRecord(record)
+            self.handleInsertIndex(table, tuple(new), rid)
+        return LookupOutput('updated_items', (len(records),))
 
 
     def indexFilter(self, table: str, limits: tuple) -> set:
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        condIndex = {}
+        def build(limit: Term):
+            if limit._type != 1 or (limit.table and limit.table != table)
+                return None
+            colIndex = tableInfo.getColumnIndex(limit.col)
+            if colIndex and limit._value and limit.col in tableInfo.index:
+                lo, hi = condIndex.get(limit.col, (-1 << 31 + 1, 1 << 31))
+                val = int(limit._value)
+                if limit.operator == "=":
+                    lower = max(lo, val)
+                    upper = min(hi, val)
+                elif limit.operator == "<":
+                    lower = lo
+                    upper = min(hi, val - 1)
+                elif limit.operator == ">":
+                    lower = max(lo, val + 1)
+                    upper = hi
+                elif limit.operator == "<=":
+                    lower = lo
+                    upper = min(hi, val)
+                elif limit.operator == ">=":
+                    lower =max(lo, val)
+                    upper = hi
+                else:
+                    return None
+                condIndex[limit.col] = lower, upper
 
+        results = None
+        t = tuple(map(build, limits))
+
+        for col in condIndex:
+            if results:
+                lo, hi = condIndex.get(col)
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                results = results & set(index.range(lo, hi))
+            else:
+                lo, hi = condIndex.get(col)
+                index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
+                results = set(index.range(lo, hi))
+        return results
 
     def searchRecordIndex(self, table: str, limits: tuple):
         self.checkInUse()
@@ -453,3 +508,167 @@ class SystemManger:
                 index = self.IM.start_index(self.inUse, table, tableInfo.index[col])
                 index.delete(NULL_VALUE, rid)
         return
+
+    def buildConditionsFuncs(self, table: str, limits, metahandler):
+        tableInfo = metahandler.collectTableInfo(table)
+        def build(limit: Term):
+            if limit.table is not None and limit.table != table:
+                return  None
+            colIndex = tableInfo.getColumnIndex(limit.col)
+            if colIndex:
+                colType = tableInfo.columnType[colIndex]
+                if limit._type == 1:
+                    if limit.aim_col is not None:
+                        if limit.aim_table == table:
+                            return self.compare(colIndex, limit.operator, tableInfo.getColumnIndex(limit.aim_col))
+                        return None
+                    else:
+                        if colType == "DATE":
+                            if type(limit._value) not in (str, date):
+                                raise ValueTypeError("need str/date here")
+                            val = limit._value
+                            if type(val) is date:
+                                return self.compareV(colIndex, limit.operator, val)
+                            valist = val.replace("/", "-").split("-")
+                            return self.compareV(colIndex, limit.operator, date(*map(int, valist)))
+                        elif colType in ("INT", "FLOAT"):
+                            if isinstance(limit._value, (int, float)):
+                                return self.compareV(colIndex, limit.operator, limit._value)
+                            raise ValueTypeError("need int/float here")
+                        elif colType == "VARCHAR":
+                            if isinstance(limit._value, str):
+                                return self.compareV(colIndex, limit.operator, limit._value)
+                            raise ValueTypeError("need varchar here")
+                        raise ValueTypeError("limit value error")
+                elif limit._type == 2:
+                    if colType == "DATE":
+                        values = []
+                        for val in limit._value:
+                            if type(val) is str:
+                                valist = val.replace("/", "-").split("-")
+                                values.append(date(*map(int, valist)))
+                            elif type(val) is date:
+                                values.append(val)
+                            raise ValueTypeError("need str/date here")
+                        return lambda x: x[colIndex] in tuple(values)
+                    return lambda x: x[colIndex] in limit._value
+                elif limit._type == 3:
+                    if colType == "VARCHAR":
+                        return lambda x: self.buildPattern(limit._value).match(str(x[colIndex]))
+                    raise ValueTypeError("like need varchar here")
+                elif limit._type == 0:
+                    if isinstance(limit._value, bool):
+                        if limit._value:
+                            return lambda x: x[colIndex] is None
+                        return lambda x: x[colIndex] is not None
+                    raise ValueTypeError("limit value need bool here")
+                raise ValueTypeError("limit type unknown")
+            raise ColumnNotExist("limit column name unknown")
+        results = []
+        for limit in limits:
+            func = build(limit)
+            if func is not None:
+                results.append(func)
+        return results
+
+    def selectRecords(self, reducers: Tuple[Reducer], tables: Tuple[str, ...],
+                      limits: Tuple[Term], groupBy: Tuple[str, str]):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        def getSelected(col2data):
+            col2data['*.*'] = next(iter(col2data.values()))
+            return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
+
+        def setTableName(object, tableName, colName):
+            if getattr(object, colName) is None:
+                return
+            elif getattr(object, tableName) is None:
+                tabs = col2tab[getattr(object, colName)]
+                if tables is None:
+                    raise ColumnNotExist(getattr(object, colName) + " unknown")
+                elif len(tables) > 1:
+                    raise SameNameError(getattr(object, colName) + " exists in multiple tables")
+                setattr(object, tableName, tabs[0])
+            return
+        col2tab = metaHandler.getColumn2Table(tables)
+        groupTable, groupCol = groupBy
+        for element in limits + reducers:
+            if not isinstance(element, Term):
+                setTableName(element, 'table_name', 'column_name')
+            else:
+                setTableName(element, 'aim_table', 'aim_column')
+
+        if groupTable is None:
+            groupTable = tables[0]
+        groupBy = groupTable + '.' + groupCol
+        reducerTypes = []
+        for reducer in reducers:
+            reducerTypes.append(reducer._reducer_type)
+        reducerTypes = set(reducerTypes)
+        if groupCol is None and 1 in reducerTypes and len(reducerTypes) > 1:
+            raise SelectError("no-group select contains both field and aggregations")
+        if reducers is None and groupCol is None and len(tables) == 1 and reducers[0]._reducer_type == 3:
+            tableInfo = metaHandler.collectTableInfo(tables[0])
+            fileHandler = self.RM.openFile(self.getTablePath(tables[0]))
+            return LookupOutput((reducers[0].to_string(False),), (fileHandler.head['AllRecord']))
+        tab2results = {}
+        for table in tables:
+            tab2results[table] = self.condScanIndex(table, limits)
+        result = None
+        if len(tables) == 1:
+            result = tab2results[tables[0]]
+        else:
+            result =
+
+
+    def condScanIndex(self, table: str, limits: tuple):
+
+
+    @staticmethod
+    def printResults(result: LookupOutput):
+        TablePrinter().print([result])
+
+    @staticmethod
+    def compare(this, operator, other):
+        if operator == "<":
+            return lambda x: x[this] < x[other]
+        elif operator == "<=":
+            return lambda x: x[this] <= x[other]
+        elif operator == ">":
+            return lambda x: x[this] > x[other]
+        elif operator == ">=":
+            return lambda x: x[this] >= x[other]
+        elif operator == "<>":
+            return lambda x: x[this] != x[other]
+        elif operator == "=":
+            return lambda x: x[this] == x[other]
+
+    @staticmethod
+    def compareV(this, operator, val):
+        if operator == '<':
+            return lambda x: x is not None and x[this] < val
+        elif operator == '<=':
+            return lambda x: x is not None and x[this] <= val
+        elif operator == '>':
+            return lambda x: x is not None and x[this] > val
+        elif operator == '>=':
+            return lambda x: x is not None and x[this] >= val
+        elif operator == '<>':
+            return lambda x: x[this] != val
+        elif operator == '=':
+            return lambda x: x[this] == val
+
+    @staticmethod
+    def buildPattern(pat: str):
+        pat = pat.replace('%%', '\r')
+        pat = pat.replace('%?', '\n')
+        pat = pat.replace('%_', '\0')
+        pat = re.escape(pat)
+        pat = pat.replace('%', '.*')
+        pat = pat.replace(r'\?', '.')
+        pat = pat.replace('_', '.')
+        pat = pat.replace('\r', '%')
+        pat = pat.replace('\n', r'\?')
+        pat = pat.replace('\0', '_')
+        pat = re.compile('^' + pat + '$')
+        return pat

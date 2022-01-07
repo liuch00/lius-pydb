@@ -61,3 +61,9 @@ class DuplicatedUniqueKeyError(MyException):
 
 class MissForeignKeyError(MyException):
     pass
+
+class SameNameError(MyException):
+    pass
+
+class SelectError(MyException):
+    pass
