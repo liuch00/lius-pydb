@@ -646,7 +646,8 @@ class SystemManger:
                 data = tuple(map(takeCol, result._data))
             else:
                 if result._data is not None:
-
+                    head2data = {}
+                    for head, data in zip(result)
 
 
         else:
