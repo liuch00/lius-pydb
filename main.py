@@ -1,56 +1,63 @@
-from RecordSystem.rid import RID
-from FileSystem.BufManager import BufManager
+from pathlib import Path
+from argparse import ArgumentParser, Namespace
+import os, stat, sys
+from ManageSystem.printers import TablePrinter, CSVPrinter
+from ManageSystem.system_visitor import SystemVisitor
+from ManageSystem.system_manager import SystemManger
 from FileSystem.FileManager import FileManager
-from IndexSystem.index_handler import IndexHandler
-from IndexSystem.file_index import FileIndex
+from FileSystem.BufManager import BufManager
+from RecordSystem.RecordManager import RecordManager
+from IndexSystem.index_manager import IndexManager
+from ManageSystem.Executor import Executor
 
-
-def insert_test(handler, page_id):
-    print("Init Test...")
-    indexer = FileIndex(handler, page_id)
-    for i in range(4096):
-        indexer.insert(i, RID(0, i))
-    for i in range(4090, 4100):
-        res = indexer.search(i)
-        print("Search %d:" % i, None if res == None else res._slot)
-    print("Range [100, 110]:")
-    for i in indexer.range(100, 110):
-        print(i)
-    indexer.pour()
-    print("Test End")
-
-
-def load_test(handler, page_id):
-    print("Load Test...")
-    indexer = FileIndex(handler, page_id)
-    indexer.take()
-    for i in range(4090, 4100):
-        res = indexer.search(i)
-        print("Search %d:" % i, None if res == None else res._slot)
-    print("Test End")
-
-
-def test1():
-    # now just do some test
-    file_manager = FileManager()
-    manager = BufManager(file_manager)
-    handler = IndexHandler(buf_manager=manager, database_name="A", home_directory='.')
-    print("Test start.")
-    page_id = handler.new_page()
-    print(page_id)
-    insert_test(handler, page_id)
-    load_test(handler, page_id)
-
-
-# def test2():
-#     file_manager = FileManager()
-#     manager = BufManager(file_manager)
-#     handler = IndexHandler(buf_manager=manager, database_name="A", home_directory='.')
-#     page_id = 0
-#     load_test(handler, page_id)
-
-
+def getParser():
+    parser = ArgumentParser()
+    choices = {'table': TablePrinter, 'csv': CSVPrinter}
+    parser.add_argument('-p', '--printer', type=str, choices=choices, default='table')
+    parser.add_argument('-b', '--base', type=Path, default='data')
+    parser.add_argument('-f', '--file', type=Path)
+    parser.add_argument('-t', '--table', type=str)
+    parser.add_argument('database', nargs='?', type=str)
+    return parser
 
 if __name__ == '__main__':
-    test1()
-    # test2()
+    args = getParser().parse_args()
+    printer = None
+    if args.printer == 'table':
+        printer = TablePrinter()
+    elif args.printer == 'csv':
+        printer = CSVPrinter()
+    visitor = SystemVisitor()
+    syspath = Path(args.base)
+    FM = FileManager()
+    BM = BufManager(FM)
+    RM = RecordManager(BM)
+    IM = IndexManager(BM, syspath)
+    manager = SystemManger(visitor, syspath, BM, RM, IM)
+    if args.database:
+        manager.useDatabase(args.database)
+    if args.file:
+        executor = Executor()
+        result = executor.execute(manager, args.file, args.database, args.table)
+        printer.print(results=result)
+    else:
+        sql = ''
+        mode = os.fstat(0).st_mode
+        while True:
+            if not stat.S_ISREG(mode):
+                prefix = f'liubase({printer.inUse})'
+                if sql:
+                    pre = '-'.rjust(len(prefix))
+                    print(pre + '> ', end='')
+                else:
+                    print(prefix + '> ', end='')
+            try:
+                sql += ' ' + input()
+            except (KeyboardInterrupt, EOFError):
+                break
+            if sql.strip().lower() in ('exit', 'quit', '.exit', '.quit'):
+                break
+            if sql.endswith(';'):
+                result = manager.execute(sql)
+
+    manager.shutdown()
