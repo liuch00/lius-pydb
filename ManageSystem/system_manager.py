@@ -625,7 +625,47 @@ class SystemManger:
         if len(tables) == 1:
             result = tab2results[tables[0]]
         else:
-            result =
+            result = self.condJoin(tab2results, limits)
+
+        if groupCol is None:
+            if reducers[0]._reducer_type == 0:
+                if len(reducers) == 1:
+                    return result
+                raise SelectError("reducer num not 1")
+            elif 1 in reducerTypes:
+                heads = []
+                headindexes = []
+                for reducer in reducers:
+                    heads.append(reducer.target())
+                headers = tuple(heads)
+                for head in headers:
+                    headindexes.append(result.get_header_index(head))
+                indexes = tuple(headindexes)
+                def takeCol(row):
+                    return tuple(row[ele] for ele in indexes)
+                data = tuple(map(takeCol, result._data))
+            else:
+                if result._data is not None:
+
+
+
+        else:
+            def getRow(group):
+                head2data = {}
+                for head, data in zip(result._headers, zip(*group)):
+                    head2data[head] = data
+                return getSelected(head2data)
+            index = result.get_header_index(groupBy)
+            groups = {}
+            for row in result._data:
+                if groups.get(row[index]) is None:
+                    groups[row[index]] = [row]
+                else:
+                    groups[row[index]].append(row)
+            if reducers[0]._reducer_type == 0:
+                return LookupOutput(result._headers, tuple(group[0] for group in groups.values()))
+            data = tuple(map(getRow, groups.values()))
+
 
 
     def condScanIndex(self, table: str, limits: tuple):
