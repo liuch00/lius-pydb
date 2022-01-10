@@ -33,7 +33,7 @@ class FileIndex:
             new_root_father = NoneLeafNode(page=new_page_id_father, father=new_page_id_father, child_key_list=[],
                                            child_list=[],
                                            index_handler=self._handler)
-            self._root_node._father = new_root_father.page()
+            self._root_node._father = new_page_id_father
             right_key_index = len(self._root_node.child_key_list) - 1
             right_key = self._root_node.child_key_list[right_key_index]
             right_child_key_list, right_child_list, origin_mi_key = self._root_node.split()

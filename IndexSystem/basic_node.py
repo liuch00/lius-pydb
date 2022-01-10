@@ -51,7 +51,7 @@ class BasicNode:
             else:
                 return pos
         else:
-            return None
+            return 0
 
 
     @abstractmethod

@@ -5,6 +5,7 @@ path = ['./backend',
         './IndexSystem',
         './ManageSystem',
         './MetaSystem',
+        # './SQL_Parser',
         './RecordSystem']
 for direc in path:
 

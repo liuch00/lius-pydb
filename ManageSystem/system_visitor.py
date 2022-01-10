@@ -146,7 +146,9 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#alter_table_add.
     def visitAlter_table_add(self, ctx: SQLParser.Alter_table_addContext):
         col: ColumnInfo = ctx.field().accept(self)
-        self.system_manager.addColumn(self.to_str(ctx.Identifier()), col)
+        pri = isinstance(ctx.field(), SQLParser.Primary_key_fieldContext)
+        foreign = ctx.field().getChild(0).getText() == 'FOREIGN'
+        self.system_manager.addColumn(self.to_str(ctx.Identifier()), col, pri, foreign)
 
     # Visit a parse tree produced by SQLParser#alter_table_drop.
     def visitAlter_table_drop(self, ctx: SQLParser.Alter_table_dropContext):
@@ -162,7 +164,8 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#alter_table_drop_foreign_key.
     def visitAlter_table_drop_foreign_key(self, ctx: SQLParser.Alter_table_drop_foreign_keyContext):
-        self.system_manager.removeForeign(self.to_str(ctx.Identifier(0)),self.to_str(ctx.Identifier(1)), None)
+        self.system_manager.removeForeign(self.to_str(ctx.Identifier(0)), self.to_str(ctx.Identifier(1)), None)
+
         # self.system_manager.removeForeign(None, None, self.to_str(ctx.Identifier(1)))
 
     # Visit a parse tree produced by SQLParser#alter_table_add_pk.
@@ -189,7 +192,10 @@ class SystemVisitor(SQLVisitor):
             if isinstance(field, SQLParser.Normal_fieldContext):
                 name = self.to_str(field.Identifier())
                 type_, size = field.type_().accept(self)
-                name_to_column[name] = ColumnInfo(type_, name, size)
+                null_permit = True
+                if len(field.children) > 2 and 'NOT' in (field.getChild(1).getText(), field.getChild(2).getText()):
+                    null_permit = False
+                name_to_column[name] = ColumnInfo(type_, name, size, null_permit)
             elif isinstance(field, SQLParser.Foreign_key_fieldContext):
                 field_name, table_name, refer_name = field.accept(self)
                 if field_name in foreign_keys:
@@ -271,9 +277,10 @@ class SystemVisitor(SQLVisitor):
 
     # Visit a parse tree produced by SQLParser#where_null.
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
-        table_name, col_name = ctx.column().accept(self)
-        is_null = ctx.getChild(2) != "NOT"
-        return Term(0, table_name, col_name, is_null)
+        table_name = ctx.parentCtx.parentCtx.identifiers().accept(self)[0]
+        _, col_name = ctx.column().accept(self)
+        is_null = ctx.getChild(2).getText() != "NOT"
+        return Term(0, table_name, col_name, value=is_null)
 
     # Visit a parse tree produced by SQLParser#where_in_list.
     def visitWhere_in_list(self, ctx: SQLParser.Where_in_listContext):

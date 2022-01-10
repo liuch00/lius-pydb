@@ -73,3 +73,12 @@ class DateValueError(MyException):
 
 class JoinError(MyException):
     pass
+
+class AddForeignError(MyException):
+    pass
+
+class RemoveError(MyException):
+    pass
+
+class AddError(MyException):
+    pass

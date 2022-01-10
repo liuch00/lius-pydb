@@ -9,10 +9,11 @@ from RecordSystem.record import Record
 
 
 class ColumnInfo:
-    def __init__(self, type: str, name: str, size: int, default=None):
+    def __init__(self, type: str, name: str, size: int, null_permit: bool = True, default=None):
         self.type = type
         self.name = name
         self.size = size
+        self.null_permit = null_permit
         self.default = default
 
     def getSize(self):
@@ -22,7 +23,7 @@ class ColumnInfo:
 
     def getDESC(self):
         """name, type, null, keytype, default, extra"""
-        return [self.name, self.type, "NO", "", self.default, ""]
+        return [self.name, self.type, "OK" if self.null_permit else "NO", "", self.default, ""]
 
 
 class TableInfo:
@@ -46,7 +47,7 @@ class TableInfo:
             for name in self.primary:
                 desc[name][3] = 'primary'
         for name in self.foreign:
-            if desc[name][3] is not None:
+            if desc[name][3]:
                 desc[name][3] = 'multi'
             else:
                 desc[name][3] = 'foreign'
@@ -90,7 +91,7 @@ class TableInfo:
             self.foreign.pop(column)
         return
 
-    def addUnique(self, column: str, uniq: str):
+    def addUnique(self, column: str, uniq):
         self.unique[column] = uniq
         return
 
@@ -108,10 +109,13 @@ class TableInfo:
                 length = 0
                 byte = (1, )
                 if value is not None:
-                    byte = (0, ) + tuple(value.encode())
-                    if len(byte) > size:
-                        print("OH NO")
-                        raise VarcharTooLong("too long. max size is " + str(size - 1))
+                    try:
+                        byte = (0, ) + tuple(value.encode())
+                        if len(byte) > size:
+                            print("OH NO")
+                            raise VarcharTooLong("too long. max size is " + str(size - 1))
+                    except AttributeError:
+                        raise ValueTypeError("wrong value type")
                 else:
                     byte = (1, )
                 length = len(byte)

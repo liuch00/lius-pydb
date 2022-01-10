@@ -25,6 +25,7 @@ class Executor:
             for row in iterator:
                 if row[-1] == '':
                     row = row[:-1]
+                row = row.split(',')
                 result = tuple(map(parse, zip(row, tableInfo.columnType)))
                 # try:
                 manager.insertRecord(tbname, list(result))

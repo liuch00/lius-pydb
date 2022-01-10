@@ -19,6 +19,7 @@ class NoneLeafNode(BasicNode):
 
     def insert(self, key, value):
         cursor = self.lower_bound(key)
+        # cursor_new = self.upper_bound(key)
         if cursor is not None:
             if key > self._child_key_list[cursor]:
                 self._child_key_list[cursor] = key
@@ -117,7 +118,7 @@ class NoneLeafNode(BasicNode):
 
     def range(self, lo, hi):
         res = []
-        lower = self.lower_bound(key=lo)
+        lower = 0
         upper = self.upper_bound(key=hi)
         if lower is None:
             return res
@@ -132,8 +133,3 @@ class NoneLeafNode(BasicNode):
                 if node_range is not None:
                     res = res + node_range
             return res
-
-
-
-
-

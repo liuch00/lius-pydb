@@ -67,6 +67,6 @@ class IndexManager:
             return file_index
 
     def close_manager(self):
-        for db_name in self._started_index_handler:
+        for db_name in tuple(self._started_index_handler):
             self.shut_handler(database_name=db_name)
         return None

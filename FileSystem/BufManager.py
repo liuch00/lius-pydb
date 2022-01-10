@@ -58,8 +58,8 @@ class BufManager:
             self.FM.writePage(fID, pID, self.addr[index])
             self.dirty[index] = False
         self.replace.free(index)
-        self.index2FPID[index] = -1
         fpID = self.index2FPID[index]
+        self.index2FPID[index] = -1
         self.FPID2index.pop(fpID)
         fID = self.split_FPID(fpID)[0]
         self.index_in_file[fID].remove(index)

@@ -15,10 +15,10 @@ class TablePrinter:
         table.field_names = result.headers
         table.add_rows(result.data)
         if not len(result.data):
-            print("Empty set in " + f'{timedelta(result.cost).total_seconds():.3f}' + "ms")
+            print("Empty set in " + f'{(timedelta(result.cost).total_seconds() / 10 ** 5):.3f}' + "s")
         else:
             print(table.get_string())
-            print(f'{len(result.data)}' + ' results in ' + f'{timedelta(result.cost).total_seconds():.3f}ms')
+            print(f'{len(result.data)}' + ' results in ' + f'{(timedelta(result.cost).total_seconds() / 10 ** 5):.3f}s')
         print()
 
     def messageReport(self, msg):

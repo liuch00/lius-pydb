@@ -1,3 +1,4 @@
+from Exceptions.exception import ValueTypeError
 class Term:
     """term_type:   0 is null
                     1 is compare
@@ -76,12 +77,16 @@ class Reducer:
             'SUM': sum,
             'AVG': lambda x: sum(x) / len(x)
         }
-        if self.type == 3:
+        if self._reducer_type == 3:
             return len(data)
-        if self.type == 1:
+        if self._reducer_type == 1:
             return data[0]
-        if self.type == 2:
-            return function_map[self._aggregator](tuple(filter(lambda x: x is not None, data)))
+        if self._reducer_type == 2:
+            try:
+                result = function_map[self._aggregator](tuple(filter(lambda x: x is not None, data)))
+                return result
+            except TypeError:
+                raise ValueTypeError("incorrect value type for aggregation")
 
     @property
     def reducer_type(self):

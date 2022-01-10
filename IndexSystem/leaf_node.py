@@ -44,6 +44,7 @@ class LeafNode(BasicNode):
         if cursor != upper:
             self._child_key_list.pop(cursor)
             self._child_list.pop(cursor)
+            len_key_list = len(self._child_key_list)
             if len_key_list > 0:
                 if cursor == 0:
                     return self._child_key_list[0]
