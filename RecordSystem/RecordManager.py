@@ -1,4 +1,3 @@
-
 from Exceptions.exception import *
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
@@ -7,6 +6,7 @@ from ManageSystem.macro import *
 from json import dumps, loads
 
 import numpy as np
+
 
 class RecordManager:
 
@@ -54,7 +54,8 @@ class RecordManager:
         handler = self.opened.get(name)
         if handler.headChanged:
             handler.changeHead()
-        self.BM.closeFile(handler.fileID)
+        file_id = handler.fileID
+        self.BM.closeFile(file_id)
         self.opened.pop(name)
         handler.open = False
         return
@@ -76,7 +77,6 @@ class RecordManager:
     def getBitmapLen(recordNum: int) -> int:
         length = (recordNum + 7) / 8
         return int(length)
-
 
     def replaceFile(self, src: str, dst: str):
         if self.opened.get(src) is not None:

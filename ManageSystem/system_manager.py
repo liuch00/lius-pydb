@@ -110,11 +110,14 @@ class SystemManger:
         try:
             tree = parser.program()
         except ParseCancellationException as e:
-            return [LookupOutput(None, None, str(e), cost=self.visitor.spend_time())]
+            ret = LookupOutput(None, None, str(e), cost=self.visitor.spend_time())
+            return [ret]
         try:
-            return self.visitor.visit(tree)
+            ret = self.visitor.visit(tree)
+            return ret
         except MyException as e:
-            return [LookupOutput(message=str(e), cost=self.visitor.spend_time())]
+            ret = LookupOutput(message=str(e), cost=self.visitor.spend_time())
+            return [ret]
 
     def displayTableNames(self):
         result = []
@@ -173,12 +176,12 @@ class SystemManger:
         if index in metaHandler.databaseInfo.indexMap:
             print("OH NO")
             raise IndexAlreadyExist("this name exists")
-        if col in tableInfo.index:
+        if col not in tableInfo.index:
+            indexFile = self.IM.create_index(self.inUse, table)
+            tableInfo.index[col] = indexFile.root
+        else:
             metaHandler.createIndex(index, table, col)
             return
-        indexFile = self.IM.create_index(self.inUse, table)
-        tableInfo.index[col] = indexFile.root
-
         if tableInfo.getColumnIndex(col) is not None:
             colIndex = tableInfo.getColumnIndex(col)
             for record in FileScan(self.RM.openFile(self.getTablePath(table))):
@@ -231,17 +234,7 @@ class SystemManger:
                 self.removeIndex(foreign)
             tableInfo.removeForeign(col)
             metaHandler.shutdown()
-
-    def setPrimary(self, table: str, pri):
-        self.checkInUse()
-        metaHandler = self.fetchMetaHandler()
-        metaHandler.setPrimary(table, pri)
-        if pri:
-            for column in pri:
-                indexName = table + "." + column
-                if indexName not in metaHandler.databaseInfo.indexMap:
-                    self.createIndex(indexName, table, column)
-        return
+        return None
 
     def removePrimary(self, table: str):
         # todo: check foreign
@@ -252,6 +245,17 @@ class SystemManger:
                 if indexName in metaHandler.databaseInfo.indexMap:
                     self.removeIndex(indexName)
             metaHandler.removePrimary(table)
+        return
+
+    def setPrimary(self, table: str, pri):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.setPrimary(table, pri)
+        if pri:
+            for column in pri:
+                indexName = table + "." + column
+                if indexName not in metaHandler.databaseInfo.indexMap:
+                    self.createIndex(indexName, table, column)
         return
 
     def addColumn(self, table: str, column, pri: bool, foreign: bool):
@@ -342,27 +346,8 @@ class SystemManger:
             self.checkRemoveConstraint(table, valTuple)
             fileHandler.deleteRecord(record.rid)
             self.handleRemoveIndex(table, valTuple, record.rid)
-        return LookupOutput('deleted_items', (len(records),))
-
-    def updateRecords(self, table: str, limits: tuple, valmap: dict):
-        self.checkInUse()
-        fileHandler = self.RM.openFile(self.getTablePath(table))
-        metaHandler = self.fetchMetaHandler()
-        tableInfo = metaHandler.collectTableInfo(table)
-        tableInfo.checkValue(valmap)
-        records, data = self.searchRecordIndex(table, limits)
-        for record, oldVal in zip(records, data):
-            new = list(oldVal)
-            for col in valmap:
-                new[tableInfo.getColumnIndex(col)] = valmap.get(col)
-            self.checkRemoveConstraint(table, oldVal)
-            rid = record.rid
-            self.checkInsertConstraint(table, new, rid)
-            self.handleRemoveIndex(table, oldVal, rid)
-            record.record = tableInfo.buildRecord(new)
-            fileHandler.updateRecord(record)
-            self.handleInsertIndex(table, tuple(new), rid)
-        return LookupOutput('updated_items', (len(records),))
+        res = LookupOutput('deleted_items', (len(records),))
+        return res
 
     def indexFilter(self, table: str, limits: tuple) -> set:
         self.checkInUse()
@@ -371,12 +356,16 @@ class SystemManger:
         condIndex = {}
 
         def build(limit: Term):
-            if limit.type != 1 or (limit.table and limit.table != table):
+            if limit.type != 1:
                 return None
-            colIndex = tableInfo.getColumnIndex(limit.col)
+            if limit.table and limit.table != table:
+                return None
+            limit_col = limit.col
+            colIndex = tableInfo.getColumnIndex(limit_col)
             if colIndex is not None and limit.value is not None and limit.col in tableInfo.index:
                 lo, hi = condIndex.get(limit.col, (-1 << 31 + 1, 1 << 31))
-                val = int(limit.value)
+                tmp = limit.value
+                val = int(tmp)
                 if limit.operator == "=":
                     lower = max(lo, val)
                     upper = min(hi, val)
@@ -410,6 +399,26 @@ class SystemManger:
                 results = set(index.range(lo, hi))
         return results
 
+    def updateRecords(self, table: str, limits: tuple, valmap: dict):
+        self.checkInUse()
+        fileHandler = self.RM.openFile(self.getTablePath(table))
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        tableInfo.checkValue(valmap)
+        records, data = self.searchRecordIndex(table, limits)
+        for record, oldVal in zip(records, data):
+            new = list(oldVal)
+            for col in valmap:
+                new[tableInfo.getColumnIndex(col)] = valmap.get(col)
+            self.checkRemoveConstraint(table, oldVal)
+            rid = record.rid
+            self.checkInsertConstraint(table, new, rid)
+            self.handleRemoveIndex(table, oldVal, rid)
+            record.record = tableInfo.buildRecord(new)
+            fileHandler.updateRecord(record)
+            self.handleInsertIndex(table, tuple(new), rid)
+        return LookupOutput('updated_items', (len(records),))
+
     def searchRecordIndex(self, table: str, limits: tuple):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
@@ -422,24 +431,20 @@ class SystemManger:
             iterator = map(fileHandler.getRecord, self.indexFilter(table, limits))
             for record in iterator:
                 valTuple = tableInfo.loadRecord(record)
+                old_valTuple = valTuple
                 if all(map(lambda fun: fun(valTuple), functions)):
                     records.append(record)
+                    old_valTuple = valTuple
                     data.append(valTuple)
         else:
             for record in FileScan(fileHandler):
                 valTuple = tableInfo.loadRecord(record)
+                old_valTuple = valTuple
                 if all(map(lambda fun: fun(valTuple), functions)):
                     records.append(record)
+                    old_valTuple = valTuple
                     data.append(valTuple)
         return records, data
-
-    def condJoin(self, res_map: dict, term):
-        if self.inUse is None:
-            raise ValueError("No using database!!!")
-        else:
-            join = Join(res_map=res_map, term=term)
-            result: LookupOutput = join.get_output()
-            return result
 
     def checkAnyUnique(self, table: str, pairs, thisRID: RID = None):
         conds = []
@@ -454,6 +459,14 @@ class SystemManger:
             return False
         print("OH NO")
         raise CheckAnyUniqueError("get " + str(len(records)) + " same")
+
+    def condJoin(self, res_map: dict, term):
+        if self.inUse is None:
+            raise ValueError("No using database!!!")
+        else:
+            join = Join(res_map=res_map, term=term)
+            result: LookupOutput = join.get_output()
+            return result
 
     def checkPrimary(self, table: str, colVals, thisRID: RID = None):
         self.checkInUse()
@@ -572,7 +585,8 @@ class SystemManger:
         def build(limit: Term):
             if limit.table is not None and limit.table != table:
                 return None
-            colIndex = tableInfo.getColumnIndex(limit.col)
+            limit_col = limit.col
+            colIndex = tableInfo.getColumnIndex(limit_col)
             if colIndex is not None:
                 colType = tableInfo.columnType[colIndex]
                 if limit.type == 1:
@@ -635,10 +649,6 @@ class SystemManger:
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
 
-        def getSelected(col2data):
-            col2data['*.*'] = next(iter(col2data.values()))
-            return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
-
         def setTableName(object, tableName, colName):
             if getattr(object, colName) is None:
                 return
@@ -650,6 +660,10 @@ class SystemManger:
                     raise SameNameError(getattr(object, colName) + " exists in multiple tables")
                 setattr(object, tableName, tabs[0])
             return
+
+        def getSelected(col2data):
+            col2data['*.*'] = next(iter(col2data.values()))
+            return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
 
         col2tab = metaHandler.getColumn2Table(tables)
         groupTable, groupCol = groupBy
@@ -666,8 +680,9 @@ class SystemManger:
         for reducer in reducers:
             reducerTypes.append(reducer.reducer_type)
         reducerTypes = set(reducerTypes)
-        if not groupCol and 1 in reducerTypes and len(reducerTypes) > 1:
-            raise SelectError("no-group select contains both field and aggregations")
+        if not groupCol and 1 in reducerTypes:
+            if len(reducerTypes) > 1:
+                raise SelectError("no-group select contains both field and aggregations")
 
         if not reducers and not groupCol and len(tables) == 1 and reducers[0].reducer_type == 3:
             tableInfo = metaHandler.collectTableInfo(tables[0])
@@ -737,8 +752,10 @@ class SystemManger:
         if limit is None:
             data = result.data[off:]
         else:
-            data = result.data[off: off + limit]
-        return LookupOutput(result.headers, data)
+            right = off + limit
+            data = result.data[off: right]
+        res = LookupOutput(result.headers, data)
+        return res
 
     def condScanIndex(self, table: str, limits: tuple):
         self.checkInUse()

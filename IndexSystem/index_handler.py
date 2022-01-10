@@ -12,7 +12,8 @@ class IndexHandler:
         index_file_path = home_directory / database_name / index_file_name
         if not self._manager.fileExist(index_file_path):
             self._manager.createFile(index_file_path)
-        self._file_id = self._manager.openFile(index_file_path)
+        file_id = self._manager.openFile(index_file_path)
+        self._file_id = file_id
         self._is_modified = False
 
     def get_page(self, page_id):

@@ -38,7 +38,9 @@ class LeafNode(BasicNode):
             upper = upper + 1
             cursor = cursor + 1
         for index in range(lower, upper):
-            if self._child_list[index] == value:
+            if self._child_list[index] != value:
+                continue
+            else:
                 cursor = index
                 break
         if cursor != upper:
@@ -75,17 +77,6 @@ class LeafNode(BasicNode):
         array.dtype = np.uint8
         return array
 
-    def search(self, key):
-        index = self.lower_bound(key=key)
-        len_key_list = len(self._child_key_list)
-        if len_key_list == 0:
-            return None
-        else:
-            if self._child_key_list[index] == key:
-                return self._child_list[index]
-            else:
-                return None
-
     def range(self, lo, hi):
         lower = self.lower_bound(key=lo)
         upper = self.upper_bound(key=hi)
@@ -94,3 +85,12 @@ class LeafNode(BasicNode):
         else:
             return self._child_list[lower:upper]
 
+    def search(self, key):
+        index = self.lower_bound(key=key)
+        len_key_list = len(self._child_key_list)
+        if len_key_list == 0:
+            return None
+        else:
+            if self._child_key_list[index] == key:
+                return self._child_list[index]
+            return None

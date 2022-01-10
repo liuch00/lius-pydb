@@ -1,4 +1,6 @@
 from Exceptions.exception import ValueTypeError
+
+
 class Term:
     """term_type:   0 is null
                     1 is compare
@@ -70,7 +72,8 @@ class Reducer:
             return f'COUNT(*)'
 
     def select(self, data: tuple):
-        function_map = {
+
+        func = {
             'COUNT': lambda x: len(set(x)),
             'MAX': max,
             'MIN': min,
@@ -83,7 +86,7 @@ class Reducer:
             return data[0]
         if self._reducer_type == 2:
             try:
-                result = function_map[self._aggregator](tuple(filter(lambda x: x is not None, data)))
+                result = func[self._aggregator](tuple(filter(lambda x: x is not None, data)))
                 return result
             except TypeError:
                 raise ValueTypeError("incorrect value type for aggregation")
@@ -95,42 +98,58 @@ class Reducer:
 
 class LookupOutput:
     def __init__(self, headers=None, data=None, message=None, change_db=None, cost=None):
-        if headers and not isinstance(headers, (list, tuple)):
-            headers = (headers,)
-        if data and not isinstance(data[0], (list, tuple)):
-            data = tuple((each,) for each in data)
+        if headers:
+            if not isinstance(headers, (list, tuple)):
+                headers = (headers,)
+        if data:
+            if not isinstance(data[0], (list, tuple)):
+                data = tuple((each,) for each in data)
         self._headers = headers
-        self._data = data
-        self._header_index = {h: i for i, h in enumerate(headers)} if headers else {}
-        self._alias_map = {}
-        self._message = message
-        self._database = change_db
-        self._cost = cost
-
-    def simplify(self):
-        if not self._headers:
-            return
-        header: str = self._headers[0]
-        if header.find('.') < 0:
-            return
-        prefix = header[:header.find('.') + 1]  # Prefix contains "."
-        for header in self._headers:
-            if len(header) <= len(prefix) or not header.startswith(prefix):
-                break
+        if headers:
+            self._header_index = {h: i for i, h in enumerate(headers)}
         else:
-            self._headers = tuple(header[len(prefix):] for header in self._headers)
+            self._header_index = {}
+        self._data = data
+        self._alias_map = {}
+        self._cost = cost
+        self._database = change_db
+        self._message = message
+
 
     def size(self):
         size: int = len(self._data)
         return size
 
+
+    def simplify(self):
+        if self._headers:
+            header: str = self._headers[0]
+            num = header.find('.')
+            if num >= 0:
+                prefix = header[:header.find('.') + 1]
+                for header in self._headers:
+                    len_h = len(header)
+                    len_p = len(prefix)
+                    if len_h <= len_p or not header.startswith(prefix):
+                        break
+                else:
+                    len_p = len(prefix)
+                    self._headers = tuple(header[len_p:] for header in self._headers)
+            else:
+                return
+        else:
+            return
+
+
     @property
     def data(self):
         return self._data
 
+
     @property
     def headers(self):
         return self._headers
+
 
     def header_id(self, header) -> int:
         if header in self._alias_map:
@@ -139,17 +158,21 @@ class LookupOutput:
             res = self._header_index[header]
             return res
 
+
     def insert_alias(self, alias, header):
         self._alias_map[alias] = header
         return None
+
 
     @property
     def alias_map(self):
         return self._alias_map
 
+
     @property
     def cost(self):
         return self._cost
+
 
     @cost.setter
     def cost(self, value):

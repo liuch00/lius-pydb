@@ -12,6 +12,11 @@ class IndexManager:
         self._started_index_handler: Dict[str, IndexHandler] = {}
         self._started_file_index: Dict[FileIndexID, FileIndex] = {}
 
+    def close_manager(self):
+        for db_name in tuple(self._started_index_handler):
+            self.shut_handler(database_name=db_name)
+        return None
+
     def catch_handler(self, database_name):
         if database_name in self._started_index_handler:
             return self._started_index_handler[database_name]
@@ -24,8 +29,10 @@ class IndexManager:
 
     def shut_handler(self, database_name):
         if database_name in self._started_index_handler:
-            index_handler = self._started_index_handler.pop(database_name)
-            for key, file_index in tuple(self._started_file_index.items()):
+            old_index_handler = self._started_index_handler.pop(database_name)
+            index_handler = old_index_handler
+            for_range = tuple(self._started_file_index.items())
+            for key, file_index in for_range:
                 if file_index.handler is not index_handler:
                     continue
                 if (key._table_name, key._file_index_root_id) not in self._started_index_handler:
@@ -65,8 +72,3 @@ class IndexManager:
             file_index.take()
             self._started_file_index[ID] = file_index
             return file_index
-
-    def close_manager(self):
-        for db_name in tuple(self._started_index_handler):
-            self.shut_handler(database_name=db_name)
-        return None

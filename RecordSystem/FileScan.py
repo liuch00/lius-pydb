@@ -13,7 +13,9 @@ class FileScan:
         pageNum = self.handler.head['PageNum']
         for pID in range(1, pageNum):
             page = self.handler.RM.BM.getPage(self.handler.fileID, pID)
-            if page[PAGE_FLAG_OFFSET] == RECORD_PAGE_FLAG:
+            if page[PAGE_FLAG_OFFSET] != RECORD_PAGE_FLAG:
+                continue
+            else:
                 bitmap = self.handler.getBitmap(page)
                 for slot in range(len(bitmap)):
                     if bitmap[slot] == 0:

@@ -83,7 +83,7 @@ class RemoveError(MyException):
 class AddError(MyException):
     passimport numpy as np
 
-from .macro import *
+from ManageSystem.macro import *
 from .FileManager import FileManager
 from .FindReplace import FindReplace
 
@@ -124,7 +124,8 @@ class BufManager:
         return
 
     def release(self, index):
-        self.dirty[index] = False
+        is_dirty = False
+        self.dirty[index] = is_dirty
         self.replace.free(index)
         self.index2FPID[index] = -1
         fpID = self.index2FPID[index]
@@ -175,8 +176,8 @@ class BufManager:
         if index is None:
             self.getPage(fID, pID)
             index = self.FPID2index[fpID]
-        self.dirty[index] = True
         self.addr[index] = buf
+        self.dirty[index] = True
         self.replace.access(index)
         return
 
@@ -202,20 +203,6 @@ class BufManager:
 
         return self.addr[index].copy()
 
-    def shutdown(self):
-        for i in np.where(self.dirty)[0]:
-            self.writeBack(i)
-        # no need to clear dirty
-        self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
-        self.index2FPID = np.zeros(CAP)
-        for i in range(CAP):
-            self.index2FPID[i] = -1
-        self.FPID2index = {}
-        self.last = -1
-        while self.index_in_file:
-            fID = self.index_in_file.popitem()[0]
-            self.closeFile(fID)
-
     def createFile(self, name: str):
         self.FM.createFile(name)
         return
@@ -240,6 +227,22 @@ class BufManager:
     def newPage(self, fileID: int, buf: np.ndarray):
         return self.FM.newPage(fileID, buf)
 
+    def shutdown(self):
+        for_range = np.where(self.dirty)[0]
+        for i in for_range:
+            self.writeBack(i)
+        # no need to clear dirty
+        self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
+        self.index2FPID = np.zeros(CAP)
+        for i in range(CAP):
+            self.index2FPID[i] = -1
+        self.FPID2index = {}
+        self.last = -1
+        while self.index_in_file:
+            fID = self.index_in_file.popitem()[0]
+            self.closeFile(fID)
+
+
 LEAF_BIT = 32
 MAX_LEVEL = 5
 MAX_INNER_NUM = 67
@@ -251,8 +254,6 @@ class MyBitMap:
 
     def getMask(self, k):
         s = 0
-
-
 from .MyLinkList import MyLinkList
 
 
@@ -260,21 +261,21 @@ class FindReplace:
     def __init__(self, cap: int):
         self.CAP = cap
         self.list = MyLinkList(cap, 1)
-        for i in range(cap - 1, 0, -1):
-            self.list.insertFirst(0, i)
-
-    def find(self):
-        index = self.list.getFirst(0)
-        self.list.delete(index)
-        self.list.insert(0, index)
-        return index
+        num = self.CAP - 1
+        for item in range(num, 0, -1):
+            self.list.insertFirst(0, item)
 
     def access(self, index: int):
         self.list.insert(0, index)
 
     def free(self, index: int):
         self.list.insertFirst(0, index)
-from .macro import *
+
+    def find(self):
+        index = self.list.getFirst(0)
+        self.list.delete(index)
+        self.list.insert(0, index)
+        return indexfrom ManageSystem.macro import *
 from Exceptions.exception import *
 
 import numpy as np
@@ -337,34 +338,10 @@ class FileManager:
 
     def newPage(self, fileID: int, buf: np.ndarray):
         offset = os.lseek(fileID, 0, os.SEEK_END)
-        os.write(fileID, buf.tobytes())
+        bts = buf.tobytes()
+        os.write(fileID, bts)
         pID = offset >> PAGE_SIZE_IDX
         return pID
-PAGE_SIZE = 8192
-
-PAGE_INT_NUM = 2048
-
-PAGE_SIZE_IDX = 13
-MAX_FMT_INT_NUM = 128
-BUF_PAGE_NUM = 65536
-MAX_FILE_NUM = 128
-MAX_TYPE_NUM = 256
-
-CAP = 60000
-
-MOD = 60000
-IN_DEBUG = 0
-DEBUG_DELETE = 0
-DEBUG_ERASE = 1
-DEBUG_NEXT = 1
-
-MAX_COL_NUM = 31
-
-MAX_TB_NUM = 31
-RELEASE = 1
-
-# file name:
-INDEX_NAME = '.id'
 import numpy as np
 
 
@@ -372,19 +349,23 @@ class MyLinkList:
     def __init__(self, c: int, n: int):
         self.cap = c
         self.list_num = n
-        self.next = np.arange(c + n)
-        self.prev = np.arange(c + n)
+        sum_res = self.cap + self.list_num
+        self.next = np.arange(sum_res)
+        self.prev = np.arange(sum_res)
+
+    def delete(self, index: int):
+        if self.prev[index] != index:
+            prev = self.prev[index]
+            next = self.next[index]
+            self.link(prev, next)
+            self.prev[index] = index
+            self.next[index] = index
+        else:
+            return
 
     def link(self, prev: int, next: int):
         self.next[prev] = next
         self.prev[next] = prev
-
-    def delete(self, index: int):
-        if self.prev[index] == index:
-            return
-        self.link(self.prev[index], self.next[index])
-        self.prev[index] = index
-        self.next[index] = index
 
     def insert(self, listID: int, ele: int):
         self.delete(ele)
@@ -395,16 +376,14 @@ class MyLinkList:
 
     def insertFirst(self, listID: int, ele: int):
         self.delete(ele)
-        node = listID + self.cap
-        next = self.next[node]
-        self.link(node, ele)
-        self.link(ele, next)
-
-    def getFirst(self, listID: int):
-        return self.next[listID + self.cap]
+        self.link(listID + self.cap, ele)
+        self.link(ele, self.next[listID + self.cap])
 
     def isHead(self, index: int):
         return index >= self.cap
+
+    def getFirst(self, listID: int):
+        return self.next[listID + self.cap]
 
     def isAlone(self, index: int):
         return self.next[index] == index
@@ -414,7 +393,7 @@ from .index_handler import IndexHandler
 from RecordSystem.rid import RID
 # from ..RecordSystem.rid import RID
 import numpy as np
-from RecordSystem import macro
+from ManageSystem import macro
 
 
 # from ..RecordSystem import macro
@@ -666,7 +645,7 @@ class BasicNode:
 from .basic_node import BasicNode
 from .leaf_node import LeafNode
 from .index_handler import IndexHandler
-from FileSystem import macro
+from ManageSystem import macro
 # from ..FileSystem import macro
 import numpy as np
 
@@ -801,7 +780,7 @@ class NoneLeafNode(BasicNode):
 import numpy as np
 
 from FileSystem.BufManager import BufManager
-from FileSystem import macro
+from ManageSystem import macro
 
 
 class IndexHandler:
@@ -812,7 +791,8 @@ class IndexHandler:
         index_file_path = home_directory / database_name / index_file_name
         if not self._manager.fileExist(index_file_path):
             self._manager.createFile(index_file_path)
-        self._file_id = self._manager.openFile(index_file_path)
+        file_id = self._manager.openFile(index_file_path)
+        self._file_id = file_id
         self._is_modified = False
 
     def get_page(self, page_id):
@@ -846,6 +826,11 @@ class IndexManager:
         self._started_index_handler: Dict[str, IndexHandler] = {}
         self._started_file_index: Dict[FileIndexID, FileIndex] = {}
 
+    def close_manager(self):
+        for db_name in tuple(self._started_index_handler):
+            self.shut_handler(database_name=db_name)
+        return None
+
     def catch_handler(self, database_name):
         if database_name in self._started_index_handler:
             return self._started_index_handler[database_name]
@@ -858,8 +843,10 @@ class IndexManager:
 
     def shut_handler(self, database_name):
         if database_name in self._started_index_handler:
-            index_handler = self._started_index_handler.pop(database_name)
-            for key, file_index in tuple(self._started_file_index.items()):
+            old_index_handler = self._started_index_handler.pop(database_name)
+            index_handler = old_index_handler
+            for_range = tuple(self._started_file_index.items())
+            for key, file_index in for_range:
                 if file_index.handler is not index_handler:
                     continue
                 if (key._table_name, key._file_index_root_id) not in self._started_index_handler:
@@ -899,16 +886,11 @@ class IndexManager:
             file_index.take()
             self._started_file_index[ID] = file_index
             return file_index
-
-    def close_manager(self):
-        for db_name in tuple(self._started_index_handler):
-            self.shut_handler(database_name=db_name)
-        return None
 from .basic_node import BasicNode
 from .index_handler import IndexHandler
 from RecordSystem.rid import RID
 # from ..RecordSystem.rid import RID
-from FileSystem import macro
+from ManageSystem import macro
 # from ..FileSystem import macro
 import numpy as np
 
@@ -944,7 +926,9 @@ class LeafNode(BasicNode):
             upper = upper + 1
             cursor = cursor + 1
         for index in range(lower, upper):
-            if self._child_list[index] == value:
+            if self._child_list[index] != value:
+                continue
+            else:
                 cursor = index
                 break
         if cursor != upper:
@@ -981,17 +965,6 @@ class LeafNode(BasicNode):
         array.dtype = np.uint8
         return array
 
-    def search(self, key):
-        index = self.lower_bound(key=key)
-        len_key_list = len(self._child_key_list)
-        if len_key_list == 0:
-            return None
-        else:
-            if self._child_key_list[index] == key:
-                return self._child_list[index]
-            else:
-                return None
-
     def range(self, lo, hi):
         lower = self.lower_bound(key=lo)
         upper = self.upper_bound(key=hi)
@@ -1000,8 +973,18 @@ class LeafNode(BasicNode):
         else:
             return self._child_list[lower:upper]
 
+    def search(self, key):
+        index = self.lower_bound(key=key)
+        len_key_list = len(self._child_key_list)
+        if len_key_list == 0:
+            return None
+        else:
+            if self._child_key_list[index] == key:
+                return self._child_list[index]
+            return None
 from .lookup_element import Term, LookupOutput
 from Exceptions.exception import JoinError
+
 
 class Join:
     def __init__(self, res_map: dict, term, union=None):
@@ -1013,12 +996,14 @@ class Join:
     def create_pair(self, term: Term):
         if term.aim_table is not None:
             if term.table != term.aim_table:
-                if term.operator != '=':
+                op = term.operator
+                if term.operator == '=':
+                    pairs = (term.table, term.col), (term.aim_table, term.aim_col)
+                    sorted_pairs = zip(*sorted(pairs))
+                    res = tuple(sorted_pairs)
+                    return res
+                else:
                     raise TypeError('Join create_pair error!')
-                pairs = (term.table, term.col), (term.aim_table, term.aim_col)
-                sorted_pairs = zip(*sorted(pairs))
-                res = tuple(sorted_pairs)
-                return res
             else:
                 return None, None
         else:
@@ -1209,7 +1194,6 @@ class SystemVisitor(SQLVisitor):
             self.time_begin = time.time()
             return time_end - time_begin
 
-
     def aggregateResult(self, aggregate, next_result):
         return aggregate if next_result is None else next_result
 
@@ -1250,9 +1234,11 @@ class SystemVisitor(SQLVisitor):
         # todo:fix
         columns, foreign_keys, primary = ctx.field_list().accept(self)
         table_name = self.to_str(ctx.Identifier())
-        res = self.system_manager.createTable(TableInfo(table_name, columns))
-        for col in foreign_keys:
-            self.system_manager.addForeign(table_name, col, foreign_keys[col])
+        table = TableInfo(table_name, columns)
+        res = self.system_manager.createTable(table)
+        for item in foreign_keys:
+            key = foreign_keys[item]
+            self.system_manager.addForeign(table_name, item, key)
         self.system_manager.setPrimary(table_name, primary)
         return res
 
@@ -1283,9 +1269,15 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#select_table.
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         term = ctx.where_and_clause().accept(self) if ctx.where_and_clause() else ()
-        group_by = ctx.column().accept(self) if ctx.column() else (None, '')
+        if ctx.column():
+            group_by = ctx.column().accept(self)
+        else:
+            group_by = (None, '')
         limit = self.to_int(ctx.Integer(0)) if ctx.Integer() else None
-        offset = self.to_int(ctx.Integer(1)) if ctx.Integer(1) else 0
+        if ctx.Integer(1):
+            offset = self.to_int(ctx.Integer(1))
+        else:
+            offset = 0
         return self.system_manager.selectRecordsLimit(ctx.selectors().accept(self), ctx.identifiers().accept(self),
                                                       term, group_by,
                                                       limit, offset)
@@ -1369,11 +1361,11 @@ class SystemVisitor(SQLVisitor):
             else:
                 assert isinstance(field, SQLParser.Primary_key_fieldContext)
                 names = field.accept(self)
-                for name in names:
-                    if name not in name_to_column:
-                        raise NameError(f'Unknown field {name} field list')
+                for item in names:
+                    if item not in name_to_column:
+                        raise NameError(f'Unknown field {item} field list')
                 if primary_key:
-                    raise NameError('Only one primary key supported')
+                    raise NameError('Error!!!Only one primary key supported')
                 primary_key = names
         return list(name_to_column.values()), foreign_keys, primary_key
 
@@ -1435,10 +1427,12 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#where_operator_select.
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         table_name, column_name = ctx.column().accept(self)
-        operator = self.to_str(ctx.operator())
-        result: LookupOutput = ctx.select_table().accept(self)
-        value = self.system_manager.resultToValue(result=result, is_in=False)
-        return Term(1, table_name, column_name, operator, value=value)
+        op = self.to_str(ctx.operator())
+        #
+        res: LookupOutput = ctx.select_table().accept(self)
+        is_in = False
+        value = self.system_manager.resultToValue(result=res, is_in=is_in)
+        return Term(1, table_name, column_name, op, value=value)
 
     # Visit a parse tree produced by SQLParser#where_null.
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
@@ -1457,8 +1451,7 @@ class SystemVisitor(SQLVisitor):
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
         table_name, col_name = ctx.column().accept(self)
         res: LookupOutput = ctx.select_table().accept(self)
-        value = self.system_manager.resultToValue(res, True)
-        return Term(2, table_name, col_name, value=value)
+        return Term(2, table_name, col_name, value=self.system_manager.resultToValue(res, True))
 
     # Visit a parse tree produced by SQLParser#where_like_string.
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
@@ -1476,7 +1469,8 @@ class SystemVisitor(SQLVisitor):
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         tmp_map = {}
         for identifier, value in zip(ctx.Identifier(), ctx.value()):
-            tmp_map[self.to_str(identifier)] = value.accept(self)
+            tmp_str = self.to_str(identifier)
+            tmp_map[tmp_str] = value.accept(self)
         return tmp_map
 
     # Visit a parse tree produced by SQLParser#selectors.
@@ -1488,11 +1482,15 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#selector.
     def visitSelector(self, ctx: SQLParser.SelectorContext):
         if ctx.Count():
-            return Reducer(3, '*', '*')
+            reducer_type = 3
+            return Reducer(reducer_type, '*', '*')
         table_name, column_name = ctx.column().accept(self)
         if ctx.aggregator():
-            return Reducer(2, table_name, column_name, self.to_str(ctx.aggregator()))
-        return Reducer(1, table_name, column_name)
+            reducer_type = 2
+            res = Reducer(reducer_type, table_name, column_name, self.to_str(ctx.aggregator()))
+            return res
+        reducer_type = 1
+        return Reducer(reducer_type, table_name, column_name)
 
     # Visit a parse tree produced by SQLParser#identifiers.
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
@@ -1683,11 +1681,14 @@ class SystemManger:
         try:
             tree = parser.program()
         except ParseCancellationException as e:
-            return [LookupOutput(None, None, str(e), cost=self.visitor.spend_time())]
+            ret = LookupOutput(None, None, str(e), cost=self.visitor.spend_time())
+            return [ret]
         try:
-            return self.visitor.visit(tree)
+            ret = self.visitor.visit(tree)
+            return ret
         except MyException as e:
-            return [LookupOutput(message=str(e), cost=self.visitor.spend_time())]
+            ret = LookupOutput(message=str(e), cost=self.visitor.spend_time())
+            return [ret]
 
     def displayTableNames(self):
         result = []
@@ -1746,12 +1747,12 @@ class SystemManger:
         if index in metaHandler.databaseInfo.indexMap:
             print("OH NO")
             raise IndexAlreadyExist("this name exists")
-        if col in tableInfo.index:
+        if col not in tableInfo.index:
+            indexFile = self.IM.create_index(self.inUse, table)
+            tableInfo.index[col] = indexFile.root
+        else:
             metaHandler.createIndex(index, table, col)
             return
-        indexFile = self.IM.create_index(self.inUse, table)
-        tableInfo.index[col] = indexFile.root
-
         if tableInfo.getColumnIndex(col) is not None:
             colIndex = tableInfo.getColumnIndex(col)
             for record in FileScan(self.RM.openFile(self.getTablePath(table))):
@@ -1804,17 +1805,7 @@ class SystemManger:
                 self.removeIndex(foreign)
             tableInfo.removeForeign(col)
             metaHandler.shutdown()
-
-    def setPrimary(self, table: str, pri):
-        self.checkInUse()
-        metaHandler = self.fetchMetaHandler()
-        metaHandler.setPrimary(table, pri)
-        if pri:
-            for column in pri:
-                indexName = table + "." + column
-                if indexName not in metaHandler.databaseInfo.indexMap:
-                    self.createIndex(indexName, table, column)
-        return
+        return None
 
     def removePrimary(self, table: str):
         # todo: check foreign
@@ -1825,6 +1816,17 @@ class SystemManger:
                 if indexName in metaHandler.databaseInfo.indexMap:
                     self.removeIndex(indexName)
             metaHandler.removePrimary(table)
+        return
+
+    def setPrimary(self, table: str, pri):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        metaHandler.setPrimary(table, pri)
+        if pri:
+            for column in pri:
+                indexName = table + "." + column
+                if indexName not in metaHandler.databaseInfo.indexMap:
+                    self.createIndex(indexName, table, column)
         return
 
     def addColumn(self, table: str, column, pri: bool, foreign: bool):
@@ -1915,27 +1917,8 @@ class SystemManger:
             self.checkRemoveConstraint(table, valTuple)
             fileHandler.deleteRecord(record.rid)
             self.handleRemoveIndex(table, valTuple, record.rid)
-        return LookupOutput('deleted_items', (len(records),))
-
-    def updateRecords(self, table: str, limits: tuple, valmap: dict):
-        self.checkInUse()
-        fileHandler = self.RM.openFile(self.getTablePath(table))
-        metaHandler = self.fetchMetaHandler()
-        tableInfo = metaHandler.collectTableInfo(table)
-        tableInfo.checkValue(valmap)
-        records, data = self.searchRecordIndex(table, limits)
-        for record, oldVal in zip(records, data):
-            new = list(oldVal)
-            for col in valmap:
-                new[tableInfo.getColumnIndex(col)] = valmap.get(col)
-            self.checkRemoveConstraint(table, oldVal)
-            rid = record.rid
-            self.checkInsertConstraint(table, new, rid)
-            self.handleRemoveIndex(table, oldVal, rid)
-            record.record = tableInfo.buildRecord(new)
-            fileHandler.updateRecord(record)
-            self.handleInsertIndex(table, tuple(new), rid)
-        return LookupOutput('updated_items', (len(records),))
+        res = LookupOutput('deleted_items', (len(records),))
+        return res
 
     def indexFilter(self, table: str, limits: tuple) -> set:
         self.checkInUse()
@@ -1944,12 +1927,16 @@ class SystemManger:
         condIndex = {}
 
         def build(limit: Term):
-            if limit.type != 1 or (limit.table and limit.table != table):
+            if limit.type != 1:
                 return None
-            colIndex = tableInfo.getColumnIndex(limit.col)
+            if limit.table and limit.table != table:
+                return None
+            limit_col = limit.col
+            colIndex = tableInfo.getColumnIndex(limit_col)
             if colIndex is not None and limit.value is not None and limit.col in tableInfo.index:
                 lo, hi = condIndex.get(limit.col, (-1 << 31 + 1, 1 << 31))
-                val = int(limit.value)
+                tmp = limit.value
+                val = int(tmp)
                 if limit.operator == "=":
                     lower = max(lo, val)
                     upper = min(hi, val)
@@ -1983,6 +1970,26 @@ class SystemManger:
                 results = set(index.range(lo, hi))
         return results
 
+    def updateRecords(self, table: str, limits: tuple, valmap: dict):
+        self.checkInUse()
+        fileHandler = self.RM.openFile(self.getTablePath(table))
+        metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        tableInfo.checkValue(valmap)
+        records, data = self.searchRecordIndex(table, limits)
+        for record, oldVal in zip(records, data):
+            new = list(oldVal)
+            for col in valmap:
+                new[tableInfo.getColumnIndex(col)] = valmap.get(col)
+            self.checkRemoveConstraint(table, oldVal)
+            rid = record.rid
+            self.checkInsertConstraint(table, new, rid)
+            self.handleRemoveIndex(table, oldVal, rid)
+            record.record = tableInfo.buildRecord(new)
+            fileHandler.updateRecord(record)
+            self.handleInsertIndex(table, tuple(new), rid)
+        return LookupOutput('updated_items', (len(records),))
+
     def searchRecordIndex(self, table: str, limits: tuple):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
@@ -1995,24 +2002,20 @@ class SystemManger:
             iterator = map(fileHandler.getRecord, self.indexFilter(table, limits))
             for record in iterator:
                 valTuple = tableInfo.loadRecord(record)
+                old_valTuple = valTuple
                 if all(map(lambda fun: fun(valTuple), functions)):
                     records.append(record)
+                    old_valTuple = valTuple
                     data.append(valTuple)
         else:
             for record in FileScan(fileHandler):
                 valTuple = tableInfo.loadRecord(record)
+                old_valTuple = valTuple
                 if all(map(lambda fun: fun(valTuple), functions)):
                     records.append(record)
+                    old_valTuple = valTuple
                     data.append(valTuple)
         return records, data
-
-    def condJoin(self, res_map: dict, term):
-        if self.inUse is None:
-            raise ValueError("No using database!!!")
-        else:
-            join = Join(res_map=res_map, term=term)
-            result: LookupOutput = join.get_output()
-            return result
 
     def checkAnyUnique(self, table: str, pairs, thisRID: RID = None):
         conds = []
@@ -2027,6 +2030,14 @@ class SystemManger:
             return False
         print("OH NO")
         raise CheckAnyUniqueError("get " + str(len(records)) + " same")
+
+    def condJoin(self, res_map: dict, term):
+        if self.inUse is None:
+            raise ValueError("No using database!!!")
+        else:
+            join = Join(res_map=res_map, term=term)
+            result: LookupOutput = join.get_output()
+            return result
 
     def checkPrimary(self, table: str, colVals, thisRID: RID = None):
         self.checkInUse()
@@ -2145,7 +2156,8 @@ class SystemManger:
         def build(limit: Term):
             if limit.table is not None and limit.table != table:
                 return None
-            colIndex = tableInfo.getColumnIndex(limit.col)
+            limit_col = limit.col
+            colIndex = tableInfo.getColumnIndex(limit_col)
             if colIndex is not None:
                 colType = tableInfo.columnType[colIndex]
                 if limit.type == 1:
@@ -2208,10 +2220,6 @@ class SystemManger:
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
 
-        def getSelected(col2data):
-            col2data['*.*'] = next(iter(col2data.values()))
-            return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
-
         def setTableName(object, tableName, colName):
             if getattr(object, colName) is None:
                 return
@@ -2223,6 +2231,10 @@ class SystemManger:
                     raise SameNameError(getattr(object, colName) + " exists in multiple tables")
                 setattr(object, tableName, tabs[0])
             return
+
+        def getSelected(col2data):
+            col2data['*.*'] = next(iter(col2data.values()))
+            return tuple(map(lambda x: x.select(col2data[x.target()]), reducers))
 
         col2tab = metaHandler.getColumn2Table(tables)
         groupTable, groupCol = groupBy
@@ -2239,8 +2251,9 @@ class SystemManger:
         for reducer in reducers:
             reducerTypes.append(reducer.reducer_type)
         reducerTypes = set(reducerTypes)
-        if not groupCol and 1 in reducerTypes and len(reducerTypes) > 1:
-            raise SelectError("no-group select contains both field and aggregations")
+        if not groupCol and 1 in reducerTypes:
+            if len(reducerTypes) > 1:
+                raise SelectError("no-group select contains both field and aggregations")
 
         if not reducers and not groupCol and len(tables) == 1 and reducers[0].reducer_type == 3:
             tableInfo = metaHandler.collectTableInfo(tables[0])
@@ -2310,8 +2323,10 @@ class SystemManger:
         if limit is None:
             data = result.data[off:]
         else:
-            data = result.data[off: off + limit]
-        return LookupOutput(result.headers, data)
+            right = off + limit
+            data = result.data[off: right]
+        res = LookupOutput(result.headers, data)
+        return res
 
     def condScanIndex(self, table: str, limits: tuple):
         self.checkInUse()
@@ -2382,6 +2397,8 @@ class SystemManger:
         pat = re.compile('^' + pat + '$')
         return pat
 from Exceptions.exception import ValueTypeError
+
+
 class Term:
     """term_type:   0 is null
                     1 is compare
@@ -2453,7 +2470,8 @@ class Reducer:
             return f'COUNT(*)'
 
     def select(self, data: tuple):
-        function_map = {
+
+        func = {
             'COUNT': lambda x: len(set(x)),
             'MAX': max,
             'MIN': min,
@@ -2466,7 +2484,7 @@ class Reducer:
             return data[0]
         if self._reducer_type == 2:
             try:
-                result = function_map[self._aggregator](tuple(filter(lambda x: x is not None, data)))
+                result = func[self._aggregator](tuple(filter(lambda x: x is not None, data)))
                 return result
             except TypeError:
                 raise ValueTypeError("incorrect value type for aggregation")
@@ -2477,68 +2495,87 @@ class Reducer:
 
 
 class LookupOutput:
-    # todo:modified
     def __init__(self, headers=None, data=None, message=None, change_db=None, cost=None):
-        if headers and not isinstance(headers, (list, tuple)):
-            headers = (headers,)
-        if data and not isinstance(data[0], (list, tuple)):
-            data = tuple((each,) for each in data)
+        if headers:
+            if not isinstance(headers, (list, tuple)):
+                headers = (headers,)
+        if data:
+            if not isinstance(data[0], (list, tuple)):
+                data = tuple((each,) for each in data)
         self._headers = headers
-        self._data = data
-        self._header_index = {h: i for i, h in enumerate(headers)} if headers else {}
-        self._alias_map = {}
-        self._message = message
-        self._database = change_db
-        self._cost = cost
-
-    def simplify(self):
-        """Simplify headers if all headers have same prefix"""
-        if not self._headers:
-            return
-        header: str = self._headers[0]
-        if header.find('.') < 0:
-            return
-        prefix = header[:header.find('.') + 1]  # Prefix contains "."
-        for header in self._headers:
-            if len(header) <= len(prefix) or not header.startswith(prefix):
-                break
+        if headers:
+            self._header_index = {h: i for i, h in enumerate(headers)}
         else:
-            self._headers = tuple(header[len(prefix):] for header in self._headers)
+            self._header_index = {}
+        self._data = data
+        self._alias_map = {}
+        self._cost = cost
+        self._database = change_db
+        self._message = message
 
-    def size(self):
-        size: int = len(self._data)
-        return size
 
-    @property
-    def data(self):
-        return self._data
+def size(self):
+    size: int = len(self._data)
+    return size
 
-    @property
-    def headers(self):
-        return self._headers
 
-    def header_id(self, header) -> int:
-        if header in self._alias_map:
-            header = self._alias_map[header]
-        if header in self._header_index:
-            res = self._header_index[header]
-            return res
+def simplify(self):
+    if self._headers:
+        header: str = self._headers[0]
+        num = header.find('.')
+        if num >= 0:
+            prefix = header[:header.find('.') + 1]
+            for header in self._headers:
+                len_h = len(header)
+                len_p = len(prefix)
+                if len_h <= len_p or not header.startswith(prefix):
+                    break
+            else:
+                len_p = len(prefix)
+                self._headers = tuple(header[len_p:] for header in self._headers)
+        else:
+            return
+    else:
+        return
 
-    def insert_alias(self, alias, header):
-        self._alias_map[alias] = header
-        return None
 
-    @property
-    def alias_map(self):
-        return self._alias_map
+@property
+def data(self):
+    return self._data
 
-    @property
-    def cost(self):
-        return self._cost
 
-    @cost.setter
-    def cost(self, value):
-        self._cost = value
+@property
+def headers(self):
+    return self._headers
+
+
+def header_id(self, header) -> int:
+    if header in self._alias_map:
+        header = self._alias_map[header]
+    if header in self._header_index:
+        res = self._header_index[header]
+        return res
+
+
+def insert_alias(self, alias, header):
+    self._alias_map[alias] = header
+    return None
+
+
+@property
+def alias_map(self):
+    return self._alias_map
+
+
+@property
+def cost(self):
+    return self._cost
+
+
+@cost.setter
+def cost(self, value):
+    self._cost = value
+
 PAGE_SIZE = 8192
 
 PAGE_INT_NUM = 2048
@@ -2549,10 +2586,20 @@ BUF_PAGE_NUM = 65536
 MAX_FILE_NUM = 128
 MAX_TYPE_NUM = 256
 
+CAP = 60000
+
+MOD = 60000
+
+
+PAGE_FLAG_OFFSET = 0
+
+RECORD_PAGE_FLAG = 0
+
+VARCHAR_PAGE_FLAG = 1
 
 RECORD_PAGE_NEXT_OFFSET = 1
 
-RECORD_PAGE_FIXED_HEADER = RECORD_PAGE_NEXT_OFFSET + 4
+RECORD_PAGE_FIXED_HEADER = 5
 
 NULL_VALUE = -1 << 32
 
@@ -2571,7 +2618,8 @@ MAX_COL_NUM = 31
 
 MAX_TB_NUM = 31
 RELEASE = 1
-
+# file name:
+INDEX_NAME = '.id'
 from .system_manager import SystemManger
 from pathlib import Path
 from Exceptions.exception import MyException
@@ -2762,7 +2810,7 @@ class MetaHandler:
    Bud1           	                                                           i t _ _ . p                                                                                                                                                                                                                                                                                                                                                                                                                                           _ _ i n i t _ _ . p yIlocblob      A   .      _ _ p y c a c h e _ _Ilocblob         .      i n f o . p yIlocblob        .      m a c r o . p yIlocblob        .      M e t a H a n d l e r . p yIlocblob        .                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @                                              @                                                @                                                @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E  	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                                 `                                                   @                                                @                                                @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 from datetime import date
 from Exceptions.exception import *
-from .macro import *
+from ManageSystem.macro import *
 import numpy as np
 import struct
 from numbers import Number
@@ -3045,44 +3093,11 @@ class DatabaseInfo:
             raise IndexNotExist("this name doesn't exist")
         return self.indexMap.get(index)
 
-PAGE_SIZE = 8192
-
-PAGE_INT_NUM = 2048
-
-PAGE_SIZE_IDX = 13
-MAX_FMT_INT_NUM = 128
-BUF_PAGE_NUM = 65536
-MAX_FILE_NUM = 128
-MAX_TYPE_NUM = 256
-
-
-RECORD_PAGE_NEXT_OFFSET = 1
-
-RECORD_PAGE_FIXED_HEADER = RECORD_PAGE_NEXT_OFFSET + 4
-
-NULL_VALUE = -1 << 32
-
-PAGE_FLAG_OFFSET = 0
-
-RECORD_PAGE_FLAG = 0
-
-VARCHAR_PAGE_FLAG = 1
-
-IN_DEBUG = 0
-DEBUG_DELETE = 0
-DEBUG_ERASE = 1
-DEBUG_NEXT = 1
-
-MAX_COL_NUM = 31
-
-MAX_TB_NUM = 31
-RELEASE = 1
-
 import numpy as np
 from json import loads
 
 # from .RecordManager import RecordManager
-from .macro import *
+from ManageSystem.macro import *
 from .rid import RID
 from .record import Record
 
@@ -3221,24 +3236,24 @@ class RID:
     def page(self):
         return self._page
 
-
-
     @property
     def slot(self):
         return self._slot
 
-
     def __str__(self):
         return f'{{page: {self.page}, slot: {self.slot}}}'
+
+    def __hash__(self):
+        return hash((self._page, self._slot))
 
     def __eq__(self, other):
         if other is None:
             return False
-        return self._page == other.page and self._slot == other.slot
+        else:
+            ans = self._page == other.page and self._slot == other.slot
+            return ans
 
-    def __hash__(self):
-        return hash((self._page, self._slot))
-from .macro import *
+from ManageSystem.macro import *
 from .FileHandler import FileHandler
 from .rid import RID
 
@@ -3252,7 +3267,9 @@ class FileScan:
         pageNum = self.handler.head['PageNum']
         for pID in range(1, pageNum):
             page = self.handler.RM.BM.getPage(self.handler.fileID, pID)
-            if page[PAGE_FLAG_OFFSET] == RECORD_PAGE_FLAG:
+            if page[PAGE_FLAG_OFFSET] != RECORD_PAGE_FLAG:
+                continue
+            else:
                 bitmap = self.handler.getBitmap(page)
                 for slot in range(len(bitmap)):
                     if bitmap[slot] == 0:
@@ -3267,15 +3284,15 @@ class Record:
     def __init__(self, rid: RID, record: np.ndarray):
         self.record = record
         self.rid = rid
-
 from Exceptions.exception import *
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
 from .FileHandler import FileHandler
-from .macro import *
+from ManageSystem.macro import *
 from json import dumps, loads
 
 import numpy as np
+
 
 class RecordManager:
 
@@ -3323,7 +3340,8 @@ class RecordManager:
         handler = self.opened.get(name)
         if handler.headChanged:
             handler.changeHead()
-        self.BM.closeFile(handler.fileID)
+        file_id = handler.fileID
+        self.BM.closeFile(file_id)
         self.opened.pop(name)
         handler.open = False
         return
@@ -3346,7 +3364,6 @@ class RecordManager:
         length = (recordNum + 7) / 8
         return int(length)
 
-
     def replaceFile(self, src: str, dst: str):
         if self.opened.get(src) is not None:
             self.closeFile(src)
@@ -3367,34 +3384,3 @@ class RecordManager:
         for i in range(len(serial)):
             empty[i] = list(serial)[i]
         return empty
-PAGE_SIZE = 8192
-
-PAGE_INT_NUM = 2048
-
-PAGE_SIZE_IDX = 13
-MAX_FMT_INT_NUM = 128
-BUF_PAGE_NUM = 65536
-MAX_FILE_NUM = 128
-MAX_TYPE_NUM = 256
-
-
-RECORD_PAGE_NEXT_OFFSET = 1
-
-RECORD_PAGE_FIXED_HEADER = RECORD_PAGE_NEXT_OFFSET + 4
-
-
-PAGE_FLAG_OFFSET = 0
-
-RECORD_PAGE_FLAG = 0
-
-VARCHAR_PAGE_FLAG = 1
-
-IN_DEBUG = 0
-DEBUG_DELETE = 0
-DEBUG_ERASE = 1
-DEBUG_NEXT = 1
-
-MAX_COL_NUM = 31
-
-MAX_TB_NUM = 31
-RELEASE = 1

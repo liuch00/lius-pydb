@@ -1,6 +1,7 @@
 from .lookup_element import Term, LookupOutput
 from Exceptions.exception import JoinError
 
+
 class Join:
     def __init__(self, res_map: dict, term, union=None):
         self.res_map = res_map
@@ -11,12 +12,14 @@ class Join:
     def create_pair(self, term: Term):
         if term.aim_table is not None:
             if term.table != term.aim_table:
-                if term.operator != '=':
+                op = term.operator
+                if term.operator == '=':
+                    pairs = (term.table, term.col), (term.aim_table, term.aim_col)
+                    sorted_pairs = zip(*sorted(pairs))
+                    res = tuple(sorted_pairs)
+                    return res
+                else:
                     raise TypeError('Join create_pair error!')
-                pairs = (term.table, term.col), (term.aim_table, term.aim_col)
-                sorted_pairs = zip(*sorted(pairs))
-                res = tuple(sorted_pairs)
-                return res
             else:
                 return None, None
         else:

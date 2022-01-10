@@ -41,7 +41,8 @@ class BufManager:
         return
 
     def release(self, index):
-        self.dirty[index] = False
+        is_dirty = False
+        self.dirty[index] = is_dirty
         self.replace.free(index)
         self.index2FPID[index] = -1
         fpID = self.index2FPID[index]
@@ -92,8 +93,8 @@ class BufManager:
         if index is None:
             self.getPage(fID, pID)
             index = self.FPID2index[fpID]
-        self.dirty[index] = True
         self.addr[index] = buf
+        self.dirty[index] = True
         self.replace.access(index)
         return
 
@@ -119,20 +120,6 @@ class BufManager:
 
         return self.addr[index].copy()
 
-    def shutdown(self):
-        for i in np.where(self.dirty)[0]:
-            self.writeBack(i)
-        # no need to clear dirty
-        self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
-        self.index2FPID = np.zeros(CAP)
-        for i in range(CAP):
-            self.index2FPID[i] = -1
-        self.FPID2index = {}
-        self.last = -1
-        while self.index_in_file:
-            fID = self.index_in_file.popitem()[0]
-            self.closeFile(fID)
-
     def createFile(self, name: str):
         self.FM.createFile(name)
         return
@@ -156,3 +143,18 @@ class BufManager:
 
     def newPage(self, fileID: int, buf: np.ndarray):
         return self.FM.newPage(fileID, buf)
+
+    def shutdown(self):
+        for_range = np.where(self.dirty)[0]
+        for i in for_range:
+            self.writeBack(i)
+        # no need to clear dirty
+        self.addr = np.zeros((CAP, PAGE_SIZE), dtype=np.uint8)
+        self.index2FPID = np.zeros(CAP)
+        for i in range(CAP):
+            self.index2FPID[i] = -1
+        self.FPID2index = {}
+        self.last = -1
+        while self.index_in_file:
+            fID = self.index_in_file.popitem()[0]
+            self.closeFile(fID)

@@ -7,20 +7,19 @@ class RID:
     def page(self):
         return self._page
 
-
-
     @property
     def slot(self):
         return self._slot
 
-
     def __str__(self):
         return f'{{page: {self.page}, slot: {self.slot}}}'
+
+    def __hash__(self):
+        return hash((self._page, self._slot))
 
     def __eq__(self, other):
         if other is None:
             return False
-        return self._page == other.page and self._slot == other.slot
-
-    def __hash__(self):
-        return hash((self._page, self._slot))
+        else:
+            ans = self._page == other.page and self._slot == other.slot
+            return ans

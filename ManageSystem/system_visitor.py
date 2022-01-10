@@ -44,7 +44,6 @@ class SystemVisitor(SQLVisitor):
             self.time_begin = time.time()
             return time_end - time_begin
 
-
     def aggregateResult(self, aggregate, next_result):
         return aggregate if next_result is None else next_result
 
@@ -85,9 +84,11 @@ class SystemVisitor(SQLVisitor):
         # todo:fix
         columns, foreign_keys, primary = ctx.field_list().accept(self)
         table_name = self.to_str(ctx.Identifier())
-        res = self.system_manager.createTable(TableInfo(table_name, columns))
-        for col in foreign_keys:
-            self.system_manager.addForeign(table_name, col, foreign_keys[col])
+        table = TableInfo(table_name, columns)
+        res = self.system_manager.createTable(table)
+        for item in foreign_keys:
+            key = foreign_keys[item]
+            self.system_manager.addForeign(table_name, item, key)
         self.system_manager.setPrimary(table_name, primary)
         return res
 
@@ -118,9 +119,15 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#select_table.
     def visitSelect_table(self, ctx: SQLParser.Select_tableContext):
         term = ctx.where_and_clause().accept(self) if ctx.where_and_clause() else ()
-        group_by = ctx.column().accept(self) if ctx.column() else (None, '')
+        if ctx.column():
+            group_by = ctx.column().accept(self)
+        else:
+            group_by = (None, '')
         limit = self.to_int(ctx.Integer(0)) if ctx.Integer() else None
-        offset = self.to_int(ctx.Integer(1)) if ctx.Integer(1) else 0
+        if ctx.Integer(1):
+            offset = self.to_int(ctx.Integer(1))
+        else:
+            offset = 0
         return self.system_manager.selectRecordsLimit(ctx.selectors().accept(self), ctx.identifiers().accept(self),
                                                       term, group_by,
                                                       limit, offset)
@@ -204,11 +211,11 @@ class SystemVisitor(SQLVisitor):
             else:
                 assert isinstance(field, SQLParser.Primary_key_fieldContext)
                 names = field.accept(self)
-                for name in names:
-                    if name not in name_to_column:
-                        raise NameError(f'Unknown field {name} field list')
+                for item in names:
+                    if item not in name_to_column:
+                        raise NameError(f'Unknown field {item} field list')
                 if primary_key:
-                    raise NameError('Only one primary key supported')
+                    raise NameError('Error!!!Only one primary key supported')
                 primary_key = names
         return list(name_to_column.values()), foreign_keys, primary_key
 
@@ -270,10 +277,12 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#where_operator_select.
     def visitWhere_operator_select(self, ctx: SQLParser.Where_operator_selectContext):
         table_name, column_name = ctx.column().accept(self)
-        operator = self.to_str(ctx.operator())
-        result: LookupOutput = ctx.select_table().accept(self)
-        value = self.system_manager.resultToValue(result=result, is_in=False)
-        return Term(1, table_name, column_name, operator, value=value)
+        op = self.to_str(ctx.operator())
+        #
+        res: LookupOutput = ctx.select_table().accept(self)
+        is_in = False
+        value = self.system_manager.resultToValue(result=res, is_in=is_in)
+        return Term(1, table_name, column_name, op, value=value)
 
     # Visit a parse tree produced by SQLParser#where_null.
     def visitWhere_null(self, ctx: SQLParser.Where_nullContext):
@@ -292,8 +301,7 @@ class SystemVisitor(SQLVisitor):
     def visitWhere_in_select(self, ctx: SQLParser.Where_in_selectContext):
         table_name, col_name = ctx.column().accept(self)
         res: LookupOutput = ctx.select_table().accept(self)
-        value = self.system_manager.resultToValue(res, True)
-        return Term(2, table_name, col_name, value=value)
+        return Term(2, table_name, col_name, value=self.system_manager.resultToValue(res, True))
 
     # Visit a parse tree produced by SQLParser#where_like_string.
     def visitWhere_like_string(self, ctx: SQLParser.Where_like_stringContext):
@@ -311,7 +319,8 @@ class SystemVisitor(SQLVisitor):
     def visitSet_clause(self, ctx: SQLParser.Set_clauseContext):
         tmp_map = {}
         for identifier, value in zip(ctx.Identifier(), ctx.value()):
-            tmp_map[self.to_str(identifier)] = value.accept(self)
+            tmp_str = self.to_str(identifier)
+            tmp_map[tmp_str] = value.accept(self)
         return tmp_map
 
     # Visit a parse tree produced by SQLParser#selectors.
@@ -323,11 +332,15 @@ class SystemVisitor(SQLVisitor):
     # Visit a parse tree produced by SQLParser#selector.
     def visitSelector(self, ctx: SQLParser.SelectorContext):
         if ctx.Count():
-            return Reducer(3, '*', '*')
+            reducer_type = 3
+            return Reducer(reducer_type, '*', '*')
         table_name, column_name = ctx.column().accept(self)
         if ctx.aggregator():
-            return Reducer(2, table_name, column_name, self.to_str(ctx.aggregator()))
-        return Reducer(1, table_name, column_name)
+            reducer_type = 2
+            res = Reducer(reducer_type, table_name, column_name, self.to_str(ctx.aggregator()))
+            return res
+        reducer_type = 1
+        return Reducer(reducer_type, table_name, column_name)
 
     # Visit a parse tree produced by SQLParser#identifiers.
     def visitIdentifiers(self, ctx: SQLParser.IdentifiersContext):
