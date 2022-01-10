@@ -72,6 +72,15 @@ class DateValueError(MyException):
     pass
 
 class JoinError(MyException):
+    pass
+
+class AddForeignError(MyException):
+    pass
+
+class RemoveError(MyException):
+    pass
+
+class AddError(MyException):
     passimport numpy as np
 
 from .macro import *
@@ -132,8 +141,8 @@ class BufManager:
             self.FM.writePage(fID, pID, self.addr[index])
             self.dirty[index] = False
         self.replace.free(index)
-        self.index2FPID[index] = -1
         fpID = self.index2FPID[index]
+        self.index2FPID[index] = -1
         self.FPID2index.pop(fpID)
         fID = self.split_FPID(fpID)[0]
         self.index_in_file[fID].remove(index)
@@ -600,7 +609,7 @@ class BasicNode:
             else:
                 return pos
         else:
-            return None
+            return 0
 
 
     @abstractmethod
@@ -675,7 +684,7 @@ class NoneLeafNode(BasicNode):
 
     def insert(self, key, value):
         cursor = self.lower_bound(key)
-        cursor_new = self.upper_bound(key)
+        # cursor_new = self.upper_bound(key)
         if cursor is not None:
             if key > self._child_key_list[cursor]:
                 self._child_key_list[cursor] = key
@@ -688,18 +697,18 @@ class NoneLeafNode(BasicNode):
                 right_child_key_list, right_child_list, origin_mi_key = node.split()
                 old_key = self._child_key_list[cursor]
                 self._child_key_list[cursor] = origin_mi_key
-                # cursor = cursor + 1
-                self._child_key_list.insert(cursor_new, old_key)
+                cursor = cursor + 1
+                self._child_key_list.insert(cursor, old_key)
                 new_page_id = self._handler.new_page()
                 if node._node_type == 0:
                     new_node = NoneLeafNode(page=new_page_id, father=self._page, child_key_list=right_child_key_list,
                                             child_list=right_child_list, index_handler=self._handler)
-                    self._child_list.insert(cursor_new, new_node)
+                    self._child_list.insert(cursor, new_node)
                 elif node._node_type == 1:
                     new_node = LeafNode(page=new_page_id, father=self._page, left=node._page, right=new_page_id,
                                         child_key_list=right_child_key_list,
                                         child_list=right_child_list, index_handler=self._handler)
-                    self._child_list.insert(cursor_new, new_node)
+                    self._child_list.insert(cursor, new_node)
                 else:
                     raise ValueError('node_type error!')
                 return None
@@ -774,7 +783,7 @@ class NoneLeafNode(BasicNode):
 
     def range(self, lo, hi):
         res = []
-        lower = self.lower_bound(key=lo)
+        lower = 0
         upper = self.upper_bound(key=hi)
         if lower is None:
             return res
@@ -789,11 +798,6 @@ class NoneLeafNode(BasicNode):
                 if node_range is not None:
                     res = res + node_range
             return res
-
-
-
-
-
 import numpy as np
 
 from FileSystem.BufManager import BufManager
@@ -1710,6 +1714,9 @@ class SystemManger:
     def removeTable(self, table: str):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
+        tableInfo = metaHandler.collectTableInfo(table)
+        for col in tableInfo.columnMap:
+            self.checkRemoveColumn(table, col)
         metaHandler.removeTable(table)
         tablePath = self.getTablePath(table)
         self.RM.destroyFile(tablePath)
@@ -1775,8 +1782,8 @@ class SystemManger:
 
     def addForeign(self, table: str, col: str, foreign, forName=None):
         metaHandler, tableInfo = self.collectTableinfo(table)
-        tableInfo.addForeign(col, foreign)
-        metaHandler.shutdown()
+        if (table, col) not in metaHandler.databaseInfo.indexMap.values():
+            raise AddForeignError("create index on this column first")
         if forName:
             if forName not in metaHandler.databaseInfo.indexMap:
                 self.createIndex(forName, foreign[0], foreign[1])
@@ -1784,18 +1791,17 @@ class SystemManger:
             indexName = foreign[0] + "." + foreign[1]
             if indexName not in metaHandler.databaseInfo.indexMap:
                 self.createIndex(indexName, foreign[0], foreign[1])
+        tableInfo.addForeign(col, foreign)
+        metaHandler.shutdown()
         return
 
     def removeForeign(self, table, col, forName=None):
         metaHandler, tableInfo = self.collectTableinfo(table)
-        if forName:
-            if metaHandler.databaseInfo.indexMap.get(forName):
-                self.removeIndex(forName)
-        else:
-            if tableInfo.foreign.get(col) is not None:
-                foreign = tableInfo.foreign[col][0] + "." + tableInfo.foreign[col][1]
-                if metaHandler.databaseInfo.indexMap.get(foreign):
-                    self.removeIndex(foreign)
+        if tableInfo.foreign.get(col) is not None:
+            foreign = tableInfo.foreign[col][0] + "." + tableInfo.foreign[col][1]
+            reftable: TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
+            if reftable.primary.count(tableInfo.foreign[col][1]) != 0:
+                self.removeIndex(foreign)
             tableInfo.removeForeign(col)
             metaHandler.shutdown()
 
@@ -1811,6 +1817,7 @@ class SystemManger:
         return
 
     def removePrimary(self, table: str):
+        # todo: check foreign
         metaHandler, tableInfo = self.collectTableinfo(table)
         if tableInfo.primary:
             for column in tableInfo.primary:
@@ -1820,39 +1827,50 @@ class SystemManger:
             metaHandler.removePrimary(table)
         return
 
-    def addColumn(self, table: str, col, pri: bool, foreign: bool):
+    def addColumn(self, table: str, column, pri: bool, foreign: bool):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
         tableInfo = metaHandler.collectTableInfo(table)
-        if isinstance(col, tuple) and pri:
-            self.setPrimary(table, col)
-            return
-        if isinstance(col, tuple) and foreign:
-            self.addForeign(table, col[0], (col[1], col[2]), None)
-            return
-        if tableInfo.getColumnIndex(col.name):
-            print("OH NO")
-            raise ColumnAlreadyExist(col.name + " exists")
-        oldTableInfo: TableInfo = deepcopy(tableInfo)
-        metaHandler.databaseInfo.insertColumn(table, col)
-        metaHandler.shutdown()
-        copyTableFile = self.getTablePath(table + ".copy")
-        self.RM.createFile(copyTableFile, tableInfo.rowSize)
-        newRecordHandle: FileHandler = self.RM.openFile(copyTableFile)
-        scan = FileScan(self.RM.openFile(self.getTablePath(table)))
-        for record in scan:
-            recordVals = oldTableInfo.loadRecord(record)
-            valList = list(recordVals)
-            valList.append(col.default)
-            newRecordHandle.insertRecord(tableInfo.buildRecord(valList))
-        self.RM.closeFile(self.getTablePath(table))
-        self.RM.closeFile(copyTableFile)
-        self.RM.replaceFile(copyTableFile, self.getTablePath(table))
+        if pri:
+            for co in column:
+                if tableInfo.getColumnIndex(co) is None:
+                    print("OH NO")
+                    raise ColumnNotExist(co + " doesn't exist")
+            self.setPrimary(table, column)
+        elif foreign:
+            co = column[0]
+            if tableInfo.getColumnIndex(co) is None:
+                print("OH NO")
+                raise ColumnNotExist(co + " doesn't exist")
+            self.addForeign(table, co, (column[1], column[2]), None)
+        else:
+            if not isinstance(column, ColumnInfo):
+                raise AddError("unsupported add")
+            col = column
+            if tableInfo.getColumnIndex(col.name):
+                print("OH NO")
+                raise ColumnNotExist(col.name + " doesn't exist")
+            oldTableInfo: TableInfo = deepcopy(tableInfo)
+            metaHandler.databaseInfo.insertColumn(table, col)
+            metaHandler.shutdown()
+            copyTableFile = self.getTablePath(table + ".copy")
+            self.RM.createFile(copyTableFile, tableInfo.rowSize)
+            newRecordHandle: FileHandler = self.RM.openFile(copyTableFile)
+            scan = FileScan(self.RM.openFile(self.getTablePath(table)))
+            for record in scan:
+                recordVals = oldTableInfo.loadRecord(record)
+                valList = list(recordVals)
+                valList.append(col.default)
+                newRecordHandle.insertRecord(tableInfo.buildRecord(valList))
+            self.RM.closeFile(self.getTablePath(table))
+            self.RM.closeFile(copyTableFile)
+            self.RM.replaceFile(copyTableFile, self.getTablePath(table))
         return
 
     def removeColumn(self, table: str, col: str):
         self.checkInUse()
         metaHandler = self.fetchMetaHandler()
+        self.checkRemoveColumn(table, col)
         tableInfo = metaHandler.collectTableInfo(table)
         if col not in tableInfo.columnIndex:
             print("OH NO")
@@ -2038,15 +2056,27 @@ class SystemManger:
         tableInfo = metaHandler.collectTableInfo(table)
         if len(tableInfo.foreign) > 0:
             for col in tableInfo.foreign:
-                colVal = colVals[tableInfo.getColumnIndex(col)]
-                foreignTableInfo: TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
-                index = self.IM.start_index(self.inUse, tableInfo.foreign[col][0],
-                                            foreignTableInfo.index[tableInfo.foreign[col][1]])
-                if len(set(index.range(colVal, colVal))) == 0:
-                    return col, colVal
+                conds = []
+                fortable = tableInfo.foreign[col][0]
+                forcol = tableInfo.foreign[col][1]
+                conds.append(Term(1, fortable, forcol, '=', value=colVals[tableInfo.getColumnIndex(col)]))
+                records, data = self.searchRecordIndex(fortable, tuple(conds))
+                if len(records) == 0:
+                    return tableInfo.name, colVals[tableInfo.getColumnIndex(col)]
+                # colVal = colVals[tableInfo.getColumnIndex(col)]
+                # foreignTableInfo: TableInfo = metaHandler.collectTableInfo(tableInfo.foreign[col][0])
+                # index = self.IM.start_index(self.inUse, tableInfo.foreign[col][0],
+                #                             foreignTableInfo.index[tableInfo.foreign[col][1]])
+                # if len(set(index.range(colVal, colVal))) == 0:
+                #     return col, colVal
         return False
 
     def checkInsertConstraint(self, table: str, colVals, thisRID: RID = None):
+        if self.checkForeign(table, colVals):
+            miss = self.checkForeign(table, colVals)
+            print("OH NO")
+            raise MissForeignKeyError("miss: " + str(miss[0]) + ": " + str(miss[1]))
+
         if self.checkPrimary(table, colVals, thisRID):
             dup = self.checkPrimary(table, colVals, thisRID)
             print("OH NO")
@@ -2057,15 +2087,31 @@ class SystemManger:
             print("OH NO")
             raise DuplicatedUniqueKeyError("duplicated: " + str(dup[0]) + ": " + str(dup[1]))
 
-        if self.checkForeign(table, colVals):
-            miss = self.checkForeign(table, colVals)
-            print("OH NO")
-            raise MissForeignKeyError("miss: " + str(miss[0]) + ": " + str(miss[1]))
         return
+
+    def checkRemoveColumn(self, table: str, col: str):
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        for tableInfo in metaHandler.databaseInfo.tableMap.values():
+            if tableInfo.name != table and len(tableInfo.foreign) > 0:
+                for fromcol, (tab, column) in tableInfo.foreign.items():
+                    if tab == table and col == column:
+                        raise RemoveError("referenced foreignkey column")
+        return False
 
     def checkRemoveConstraint(self, table: str, colVals):
-
-        return
+        self.checkInUse()
+        metaHandler = self.fetchMetaHandler()
+        thistable = metaHandler.collectTableInfo(table)
+        for tableInfo in metaHandler.databaseInfo.tableMap.values():
+            if len(tableInfo.foreign) > 0:
+                for fromcol, (tab, col) in tableInfo.foreign.items():
+                    if tab == table:
+                        colval = colVals[thistable.getColumnIndex(col)]
+                        index = self.IM.start_index(self.inUse, tableInfo.name, tableInfo.index[fromcol])
+                        if len(set(index.range(colval, colval))) != 0:
+                            raise RemoveError("referenced foreignkey value")
+        return False
 
     def handleInsertIndex(self, table: str, data: tuple, rid: RID):
         self.checkInUse()
@@ -2713,7 +2759,7 @@ class MetaHandler:
                 else:
                     result[col].append(table)
         return result
-
+   Bud1           	                                                           i t _ _ . p                                                                                                                                                                                                                                                                                                                                                                                                                                           _ _ i n i t _ _ . p yIlocblob      A   .      _ _ p y c a c h e _ _Ilocblob         .      i n f o . p yIlocblob        .      m a c r o . p yIlocblob        .      M e t a H a n d l e r . p yIlocblob        .                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              @                                              @                                                @                                                @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   E  	                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       DSDB                                 `                                                   @                                                @                                                @                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              
 from datetime import date
 from Exceptions.exception import *
 from .macro import *
@@ -2824,10 +2870,13 @@ class TableInfo:
                 length = 0
                 byte = (1, )
                 if value is not None:
-                    byte = (0, ) + tuple(value.encode())
-                    if len(byte) > size:
-                        print("OH NO")
-                        raise VarcharTooLong("too long. max size is " + str(size - 1))
+                    try:
+                        byte = (0, ) + tuple(value.encode())
+                        if len(byte) > size:
+                            print("OH NO")
+                            raise VarcharTooLong("too long. max size is " + str(size - 1))
+                    except AttributeError:
+                        raise ValueTypeError("wrong value type")
                 else:
                     byte = (1, )
                 length = len(byte)
@@ -2996,24 +3045,6 @@ class DatabaseInfo:
             raise IndexNotExist("this name doesn't exist")
         return self.indexMap.get(index)
 
-from FileSystem.BufManager import BufManager
-
-class MetaManager:
-    def __init__(self, bm: BufManager, syspath: str):
-        self.BM = bm
-        self.systemPath = syspath
-        self.handlers = {}
-
-    def shutHandler(self, database: str):
-        if self.handlers.get(database) is not None:
-            self.handlers.pop(database).shutdown()
-        return
-
-    def shutdown(self):
-        namelist = self.handlers.keys()
-        for name in namelist:
-            self.shutHandler(name)
-        return
 PAGE_SIZE = 8192
 
 PAGE_INT_NUM = 2048

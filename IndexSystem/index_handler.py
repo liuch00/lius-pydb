@@ -1,7 +1,7 @@
 import numpy as np
 
 from FileSystem.BufManager import BufManager
-from FileSystem import macro
+from ManageSystem import macro
 
 
 class IndexHandler:

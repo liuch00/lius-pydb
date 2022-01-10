@@ -1,4 +1,4 @@
-from .macro import *
+from ManageSystem.macro import *
 from Exceptions.exception import *
 
 import numpy as np

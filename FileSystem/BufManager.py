@@ -1,6 +1,6 @@
 import numpy as np
 
-from .macro import *
+from ManageSystem.macro import *
 from .FileManager import FileManager
 from .FindReplace import FindReplace
 

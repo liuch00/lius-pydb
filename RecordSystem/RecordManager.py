@@ -3,7 +3,7 @@ from Exceptions.exception import *
 from FileSystem.FileManager import FileManager
 from FileSystem.BufManager import BufManager
 from .FileHandler import FileHandler
-from .macro import *
+from ManageSystem.macro import *
 from json import dumps, loads
 
 import numpy as np

@@ -94,7 +94,6 @@ class Reducer:
 
 
 class LookupOutput:
-    # todo:modified
     def __init__(self, headers=None, data=None, message=None, change_db=None, cost=None):
         if headers and not isinstance(headers, (list, tuple)):
             headers = (headers,)
@@ -109,7 +108,6 @@ class LookupOutput:
         self._cost = cost
 
     def simplify(self):
-        """Simplify headers if all headers have same prefix"""
         if not self._headers:
             return
         header: str = self._headers[0]

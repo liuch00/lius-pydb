@@ -1,5 +1,5 @@
 
-from .macro import *
+from ManageSystem.macro import *
 from .FileHandler import FileHandler
 from .rid import RID
 

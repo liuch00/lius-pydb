@@ -1,7 +1,7 @@
 
 from datetime import date
 from Exceptions.exception import *
-from .macro import *
+from ManageSystem.macro import *
 import numpy as np
 import struct
 from numbers import Number

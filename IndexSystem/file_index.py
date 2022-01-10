@@ -4,7 +4,7 @@ from .index_handler import IndexHandler
 from RecordSystem.rid import RID
 # from ..RecordSystem.rid import RID
 import numpy as np
-from RecordSystem import macro
+from ManageSystem import macro
 
 
 # from ..RecordSystem import macro

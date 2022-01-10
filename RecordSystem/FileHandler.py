@@ -3,7 +3,7 @@ import numpy as np
 from json import loads
 
 # from .RecordManager import RecordManager
-from .macro import *
+from ManageSystem.macro import *
 from .rid import RID
 from .record import Record
 
